@@ -97,7 +97,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
                        'generator', 'Postpass API 0.1'
                        ), 
-                    'features', json_agg(ST_AsGeoJSON(t.*)::json)) 
+                    'features', coalesce(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json))
                 FROM (%s) as t;`, task.request))
 
         } else {
