@@ -14,6 +14,9 @@ an OpenStreetMap database, Postpass itself is totally agnostic about
 the data you have in your database and you could theoretically use it
 with anything else as well.
 
+See [woodpeck/postpass-ops](https://github.com/woodpeck/postpass-ops) for 
+docs on the instance of this software at `postpass.geofabrik.de`.
+
 ## Building
 
 A simple
