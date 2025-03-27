@@ -26,8 +26,8 @@ should do the trick.
 
 You want a local PostGIS database with some sort of OpenStreetMap 
 data import. We assume that you will use 
-[osm2pgsql}(https://github.com/osm2pgsql-dev/osm2pgsql) to import your
-data, possible along the lines discussed in https://github.com/gravitystorm/openstreetmap-carto/blob/master/INSTALL.md.
+[osm2pgsql](https://github.com/osm2pgsql-dev/osm2pgsql) to import your
+data, possible along the lines discussed in the [OSM Carto installation guide](https://github.com/gravitystorm/openstreetmap-carto/blob/master/INSTALL.md).
 
 It is very much recommended to create a read-only user in your database,
 else you'll have random people on the Internet doing the "little bobby tables"
