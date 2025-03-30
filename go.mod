@@ -1,4 +1,4 @@
-module postpas
+module postpass
 
 go 1.24.0
 

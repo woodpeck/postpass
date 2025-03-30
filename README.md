@@ -21,9 +21,15 @@ docs on the instance of this software at `postpass.geofabrik.de`.
 
 A simple
 
-    go build postpass.go
+    go build -o postpass-server postpass/main.go
 
 should do the trick.
+
+You can also type
+
+    make
+
+You will need go v1.24 for this. 
 
 ## Setup and Installation
 
@@ -50,7 +56,7 @@ you will probably want to create a unix user `postpass` and a systemd service li
 
     [Service]
     User=postpass
-    ExecStart=/srv/postpass/postpass # or whereever your binary is
+    ExecStart=/srv/postpass/postpass-server # or whereever your binary is
     StandardOutput=journal
     StandardError=journal
     Restart=on-failure
