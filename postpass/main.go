@@ -76,13 +76,13 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			// this generates prettified GeoJSON
 
 			rows, err = db.Query(fmt.Sprintf(
-				`SELECT jsonb_pretty(jsonb_build_object( 
-                    'type', 'FeatureCollection', 
-                    'properties', json_build_object(
+				`SELECT jsonb_pretty(jsonb_build_object(
+                    'type', 'FeatureCollection',
+                    'properties', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
                        'generator', 'Postpass API 0.1'
-                       ), 
-                    'features', coalesce(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json)))
+                       ),
+                    'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb)))
                 FROM (%s) as t;`, task.request))
 
 		} else if task.geojson && !task.pretty {
@@ -90,13 +90,13 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			// this generates un-prettified GeoJSON
 
 			rows, err = db.Query(fmt.Sprintf(
-				`SELECT json_build_object( 
-                    'type', 'FeatureCollection', 
-                    'properties', json_build_object(
+				`SELECT json_build_object(
+                    'type', 'FeatureCollection',
+                    'properties', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
                        'generator', 'Postpass API 0.1'
-                       ), 
-                    'features', coalesce(json_agg(ST_AsGeoJSON(t.*)::json), '[]'::json))
+                       ),
+                    'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb))
                 FROM (%s) as t;`, task.request))
 
 		} else {
@@ -105,12 +105,12 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			// but doesn't attempt to build GeoJSON
 
 			rows, err = db.Query(fmt.Sprintf(
-				`SELECT jsonb_pretty(jsonb_build_object( 
-                    'metadata', json_build_object(
+				`SELECT jsonb_pretty(jsonb_build_object(
+                    'metadata', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
                        'generator', 'Postpass API 0.1'
-                       ), 
-                    'result', json_agg(t.*)::json))  
+                       ),
+                    'result', jsonb_agg(t.*)::jsonb))
                 FROM (%s) as t;`, task.request))
 		}
 
