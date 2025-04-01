@@ -257,7 +257,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 func main() {
 
 	// open a connection to the database
-	connStr := fmt.Sprintf("host=%s port=%d User=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=1000000'",
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=1000000'",
 		Host, Port, User, Password, DBName)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
