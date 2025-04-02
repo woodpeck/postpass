@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -49,6 +51,14 @@ type WorkItem struct {
 	response   chan SqlResponse
 }
 
+// global request counter
+var countMutex sync.Mutex
+var count = 0
+
+// global counter for idle workers
+var idleMutex sync.Mutex
+var idle [4]int
+
 /*
  * worker function that executes SQL queries
  *
@@ -56,10 +66,16 @@ type WorkItem struct {
  */
 func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	var res string
+	idleMutex.Lock()
+	idle[id/100]++
+	idleMutex.Unlock()
 
 	// reads job from channel
 	for task := range tasks {
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
+		idleMutex.Lock()
+		idle[id/100]--
+		idleMutex.Unlock()
 
 		// this executes the request on the database.
 		var rows *sql.Rows
@@ -116,6 +132,9 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
+			idleMutex.Lock()
+			idle[id/100]++
+			idleMutex.Unlock()
 			return
 		}
 
@@ -130,6 +149,9 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
+			idleMutex.Lock()
+			idle[id/100]++
+			idleMutex.Unlock()
 			return
 		}
 
@@ -137,6 +159,9 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		// send response back on channel
 		task.response <- SqlResponse{err: false, result: res}
+		idleMutex.Lock()
+		idle[id/100]++
+		idleMutex.Unlock()
 	}
 }
 
@@ -151,6 +176,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
 
 	var res string
+	var id int
 
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse)
@@ -180,11 +206,24 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 		collection, _ = strconv.ParseBool(tCollection[0])
 	}
 
+	// TODO err out if data empty
+
+	countMutex.Lock()
+	count++
+	id = count
+	countMutex.Unlock()
+
+	log.Printf("request #%d: query '%s'\n", id,
+		strings.Join(strings.Fields(strings.TrimSpace(data)), " "))
+
+	var startTime = time.Now().UnixMilli()
+
 	// yes there is a possible SQL injection here but risk mitigation
 	// must be done on PostgreSQL side - we do not want to build an SQL parser
 	rows, err := db.Query(fmt.Sprintf("EXPLAIN (%s)", data))
 
 	if err != nil {
+		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -200,6 +239,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 
 	if err != nil {
 		// in case EXPLAIN suddenly returns more columns
+		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -209,6 +249,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 	cost := rx.FindStringSubmatch(res)
 	if len(cost) != 3 {
 		// EXPLAIN response not parseable
+		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -216,45 +257,65 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 	// log.Printf("cost from %s to %s", cost[1], cost[2])
 	from, err := strconv.ParseFloat(cost[1], 10)
 	if err != nil {
+		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 	to, err := strconv.ParseFloat(cost[2], 10)
 	if err != nil {
+		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// use average of two cost values given by EXPLAIN
-	med := (from + to) / 2
+	med := int((from + to) / 2)
 
 	// create work item...
-	work := WorkItem{request: data, pretty: pretty, geojson: geojson, collection: collection, response: rchan}
+	work := WorkItem{
+		request:    data,
+		pretty:     pretty,
+		geojson:    geojson,
+		collection: collection,
+		response:   rchan}
 
 	// ... and send to appropriate channel
 	if med < QuickMediumThreshold {
+		log.Printf("request #%d: medium cost is %d, sending to quick worker\n", id, med)
 		quick <- work
 	} else if med < MediumSlowThreshold {
+		log.Printf("request #%d: medium cost is %d, sending to medium worker\n", id, med)
 		medium <- work
 	} else {
+		log.Printf("request #%d: medium cost is %d, sending to slow worker\n", id, med)
 		slow <- work
 	}
 
 	// wait for response
 	rv := <-rchan
 
+	var elapsed = time.Now().UnixMilli() - startTime
+
 	// and send response to HTTP client
 	if rv.err {
+		// FIXME it isn't really a bad request if it fails here, is it?
+		log.Printf("request #%d: error from database after %dms: '%s'\n",
+			id, elapsed, rv.result)
 		http.Error(writer, rv.result, http.StatusBadRequest)
-	} else {
-		fmt.Fprintf(writer, "%s", rv.result)
 	}
+
+	log.Printf("request #%d: completed after %dms, response size is %d\n",
+		id, elapsed, len(rv.result))
+	fmt.Fprintf(writer, "%s", rv.result)
 }
 
 /*
  * main program
  */
 func main() {
+
+	// don't log timestamp since systemd already does
+	log.SetFlags(0)
 
 	// open a connection to the database
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=1000000'",
@@ -288,6 +349,16 @@ func main() {
 	for w := 1; w <= 2; w++ {
 		go worker(db, 300+w, slow_jobs)
 	}
+
+	// set up a ticker to log how many busy workers there are
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		for {
+			<-ticker.C
+			log.Printf("idle workers: %d/10 quick, %d/4 medium, %d/2 slow\n",
+				idle[1], idle[2], idle[3])
+		}
+	}()
 
 	// set up callback for /interpreter URL
 	http.HandleFunc("/interpreter", func(w http.ResponseWriter, r *http.Request) {
