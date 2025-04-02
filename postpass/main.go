@@ -200,7 +200,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 
 	if err != nil {
 		// in case EXPLAIN suddenly returns more columns
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -209,19 +209,19 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 	cost := rx.FindStringSubmatch(res)
 	if len(cost) != 3 {
 		// EXPLAIN response not parseable
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// log.Printf("cost from %s to %s", cost[1], cost[2])
 	from, err := strconv.ParseFloat(cost[1], 10)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 	to, err := strconv.ParseFloat(cost[2], 10)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -245,7 +245,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 
 	// and send response to HTTP client
 	if rv.err {
-		http.Error(writer, rv.result, http.StatusInternalServerError)
+		http.Error(writer, rv.result, http.StatusBadRequest)
 	} else {
 		fmt.Fprintf(writer, "%s", rv.result)
 	}
