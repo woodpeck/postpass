@@ -135,7 +135,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			idleMutex.Lock()
 			idle[id/100]++
 			idleMutex.Unlock()
-			return
+			continue
 		}
 
 		// parse only one line of results
@@ -152,7 +152,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			idleMutex.Lock()
 			idle[id/100]++
 			idleMutex.Unlock()
-			return
+			continue
 		}
 
 		// log.Printf("worker %d done\n", id)
