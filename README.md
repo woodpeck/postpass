@@ -36,7 +36,7 @@ You will need go v1.24 for this.
 You want a local PostGIS database with some sort of OpenStreetMap 
 data import. We assume that you will use 
 [osm2pgsql](https://github.com/osm2pgsql-dev/osm2pgsql) to import your
-data, possible along the lines discussed in the [OSM Carto installation guide](https://github.com/gravitystorm/openstreetmap-carto/blob/master/INSTALL.md).
+data, possibly along the lines discussed in the [OSM Carto installation guide](https://github.com/gravitystorm/openstreetmap-carto/blob/master/INSTALL.md). (The instance on postpass.geofabrik.de uses a slightly different data schema, see [woodpeck/postpass-ops](https://github.com/woodpeck/postpass-ops) for details.)
 
 It is very much recommended to create a read-only user in your database,
 else you'll have random people on the Internet doing the "little bobby tables"
@@ -75,7 +75,7 @@ in front of Postpass, for example Apache:
 
       ProxyTimeout 3600
       RewriteEngine on
-      RewriteRule /api/0.1/(.*) http://localhost:8081/$1 [P]
+      RewriteRule /api/0.2/(.*) http://localhost:8081/$1 [P]
       RewriteRule /api/(.*) http://localhost:8081/$1 [P]
     </VirtualHost>
 
