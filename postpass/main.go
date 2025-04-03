@@ -186,7 +186,13 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 
 	// process GET/POST parameters
 	r.ParseForm()
-	data := r.Form["data"][0]
+	tData := r.Form["data"]
+	if tData == nil {
+		log.Printf("no data field given\n")
+		http.Error(writer, "no data field given", http.StatusBadRequest)
+		return
+	}
+	data := tData[0]
 
 	geojson := true
 	tGeojson := r.Form["options[geojson]"]
@@ -205,8 +211,6 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 	if tCollection != nil {
 		collection, _ = strconv.ParseBool(tCollection[0])
 	}
-
-	// TODO err out if data empty
 
 	countMutex.Lock()
 	count++
@@ -355,8 +359,8 @@ func main() {
 	go func() {
 		for {
 			<-ticker.C
-			log.Printf("idle workers: %d/10 quick, %d/4 medium, %d/2 slow\n",
-				idle[1], idle[2], idle[3])
+			log.Printf("idle workers: %d/10 quick, %d/4 medium, %d/2 slow; request count: %d\n",
+				idle[1], idle[2], idle[3], count)
 		}
 	}()
 
