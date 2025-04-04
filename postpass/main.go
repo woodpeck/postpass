@@ -31,8 +31,8 @@ const (
 	User                 = "readonly"
 	Password             = "readonly"
 	DBName               = "gis"
-	QuickMediumThreshold = 100
-	MediumSlowThreshold  = 50000
+	QuickMediumThreshold = 150
+	MediumSlowThreshold  = 150000
 	ListenPort           = 8081
 )
 
@@ -322,7 +322,7 @@ func main() {
 	log.SetFlags(0)
 
 	// open a connection to the database
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=1000000'",
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=36000000'",
 		Host, Port, User, Password, DBName)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
