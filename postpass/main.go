@@ -11,10 +11,10 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -166,6 +166,44 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	}
 }
 
+func explain(db *sql.DB, query string) (float64, float64, error) {
+	var unparsedResult []byte
+	var parsedResult []struct {
+		Plan struct {
+			Startup  float64 `json:"Startup Cost"`
+			Total    float64 `json:"Total Cost"`
+		} `json:"Plan"`
+	}
+
+	// yes there is a possible SQL injection here but risk mitigation
+	// must be done on PostgreSQL side - we do not want to build an SQL parser
+	rows, err := db.Query(fmt.Sprintf("EXPLAIN (FORMAT JSON) (%s)", query))
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// read only one row of EXPLAIN result
+	rows.Next()
+
+	// read only one column
+	err = rows.Scan(&unparsedResult)
+
+	// discard query
+	defer rows.Close()
+
+	err = json.Unmarshal(unparsedResult, &parsedResult)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if len(parsedResult) != 1 {
+		return 0, 0, fmt.Errorf("could not determine costs from explain output")
+	}
+
+	return parsedResult[0].Plan.Startup, parsedResult[0].Plan.Total, nil
+}
+
 /*
  * API handler that receives a web request
  *
@@ -176,7 +214,6 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
  */
 func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
 
-	var res string
 	var id int
 
 	// create channel we want to receive the response on
@@ -223,50 +260,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 
 	var startTime = time.Now().UnixMilli()
 
-	// yes there is a possible SQL injection here but risk mitigation
-	// must be done on PostgreSQL side - we do not want to build an SQL parser
-	rows, err := db.Query(fmt.Sprintf("EXPLAIN (%s)", data))
-
-	if err != nil {
-		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// read only one row of EXPLAIN result
-	rows.Next()
-
-	// read only one column
-	err = rows.Scan(&res)
-
-	// discard query
-	rows.Close()
-
-	if err != nil {
-		// in case EXPLAIN suddenly returns more columns
-		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// parse cost from EXPLAIN result
-	rx, _ := regexp.Compile("cost=(\\d+\\.\\d+)\\.\\.(\\d+\\.\\d+) rows")
-	cost := rx.FindStringSubmatch(res)
-	if len(cost) != 3 {
-		// EXPLAIN response not parseable
-		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// log.Printf("cost from %s to %s", cost[1], cost[2])
-	from, err := strconv.ParseFloat(cost[1], 10)
-	if err != nil {
-		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
-	to, err := strconv.ParseFloat(cost[2], 10)
+	from, to, err := explain(db, data)
 	if err != nil {
 		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
