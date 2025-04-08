@@ -12,7 +12,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
 	"log"
 	"net/http"
 	"regexp"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 /* config stuff
