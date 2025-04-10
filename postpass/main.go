@@ -97,7 +97,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
                     'type', 'FeatureCollection',
                     'properties', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                       'generator', 'Postpass API 0.1'
+                       'generator', 'Postpass API 0.2'
                        ),
                     'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb)))
                 FROM (%s) as t;`, task.request))
@@ -111,7 +111,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
                     'type', 'FeatureCollection',
                     'properties', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                       'generator', 'Postpass API 0.1'
+                       'generator', 'Postpass API 0.2'
                        ),
                     'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb))
                 FROM (%s) as t;`, task.request))
@@ -125,7 +125,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 				`SELECT jsonb_pretty(jsonb_build_object(
                     'metadata', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                       'generator', 'Postpass API 0.1'
+                       'generator', 'Postpass API 0.2'
                        ),
                     'result', jsonb_agg(t.*)::jsonb))
                 FROM (%s) as t;`, task.request))
