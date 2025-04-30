@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -53,12 +53,10 @@ type WorkItem struct {
 }
 
 // global request counter
-var countMutex sync.Mutex
-var count = 0
+var count atomic.Int64
 
 // global counter for idle workers
-var idleMutex sync.Mutex
-var idle [4]int
+var idle [4]atomic.Int64
 
 /*
  * worker function that executes SQL queries
@@ -67,16 +65,12 @@ var idle [4]int
  */
 func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	var res string
-	idleMutex.Lock()
-	idle[id/100]++
-	idleMutex.Unlock()
+	idle[id/100].Add(1)
 
 	// reads job from channel
 	for task := range tasks {
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
-		idleMutex.Lock()
-		idle[id/100]--
-		idleMutex.Unlock()
+		idle[id/100].Add(-1)
 
 		// this executes the request on the database.
 		var rows *sql.Rows
@@ -133,9 +127,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
-			idleMutex.Lock()
-			idle[id/100]++
-			idleMutex.Unlock()
+			idle[id/100].Add(1)
 			continue
 		}
 
@@ -150,9 +142,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
-			idleMutex.Lock()
-			idle[id/100]++
-			idleMutex.Unlock()
+			idle[id/100].Add(1)
 			continue
 		}
 
@@ -160,9 +150,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		// send response back on channel
 		task.response <- SqlResponse{err: false, result: res}
-		idleMutex.Lock()
-		idle[id/100]++
-		idleMutex.Unlock()
+		idle[id/100].Add(1)
 	}
 }
 
@@ -170,8 +158,8 @@ func explain(db *sql.DB, query string) (float64, float64, error) {
 	var unparsedResult []byte
 	var parsedResult []struct {
 		Plan struct {
-			Startup  float64 `json:"Startup Cost"`
-			Total    float64 `json:"Total Cost"`
+			Startup float64 `json:"Startup Cost"`
+			Total   float64 `json:"Total Cost"`
 		} `json:"Plan"`
 	}
 
@@ -213,9 +201,6 @@ func explain(db *sql.DB, query string) (float64, float64, error) {
  * three classes of worker.
  */
 func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
-
-	var id int
-
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse)
 
@@ -250,10 +235,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 		collection, _ = strconv.ParseBool(tCollection[0])
 	}
 
-	countMutex.Lock()
-	count++
-	id = count
-	countMutex.Unlock()
+	id := count.Add(1)
 
 	log.Printf("request #%d: query '%s'\n", id,
 		strings.Join(strings.Fields(strings.TrimSpace(data)), " "))
@@ -355,7 +337,7 @@ func main() {
 		for {
 			<-ticker.C
 			log.Printf("idle workers: %d/10 quick, %d/4 medium, %d/2 slow; request count: %d\n",
-				idle[1], idle[2], idle[3], count)
+				idle[1].Load(), idle[2].Load(), idle[3].Load(), count.Load())
 		}
 	}()
 
@@ -364,7 +346,7 @@ func main() {
 		handleApi(db, slow_jobs, medium_jobs, quick_jobs, w, r)
 	})
 
+	log.Printf("Listening on :%d", ListenPort)
 	// endless loop
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", ListenPort), nil))
-
 }
