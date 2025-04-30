@@ -10,6 +10,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -50,6 +51,7 @@ type WorkItem struct {
 	pretty     bool
 	collection bool
 	response   chan SqlResponse
+	closer     chan struct{}
 }
 
 // global request counter
@@ -69,6 +71,13 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 	// reads job from channel
 	for task := range tasks {
+		taskCtx, cancelTask := context.WithCancel(context.Background())
+		go func() {
+			for range task.closer {
+				cancelTask()
+			}
+		}()
+
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
 		idle[id/100].Add(-1)
 
@@ -80,13 +89,13 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 			// if task.collection is not set, we execute the query as-is.
 			// this will only work if the query returns exactly one row and one column.
-			rows, err = db.Query(task.request)
+			rows, err = db.QueryContext(taskCtx, task.request)
 
 		} else if task.geojson && task.pretty {
 
 			// this generates prettified GeoJSON
 
-			rows, err = db.Query(fmt.Sprintf(
+			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
 				`SELECT jsonb_pretty(jsonb_build_object(
                     'type', 'FeatureCollection',
                     'properties', jsonb_build_object(
@@ -100,7 +109,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 			// this generates un-prettified GeoJSON
 
-			rows, err = db.Query(fmt.Sprintf(
+			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
 				`SELECT json_build_object(
                     'type', 'FeatureCollection',
                     'properties', jsonb_build_object(
@@ -115,7 +124,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			// this collects results over multiple rows and columns,
 			// but doesn't attempt to build GeoJSON
 
-			rows, err = db.Query(fmt.Sprintf(
+			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
 				`SELECT jsonb_pretty(jsonb_build_object(
                     'metadata', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
@@ -202,7 +211,8 @@ func explain(db *sql.DB, query string) (float64, float64, error) {
  */
 func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
 	// create channel we want to receive the response on
-	rchan := make(chan SqlResponse)
+	rchan := make(chan SqlResponse, 1)
+	closeChan := make(chan struct{}, 1)
 
 	writer.Header().Set("Access-Control-Allow-Origin", "*")
 	writer.Header().Set("Content-Type", "application/json")
@@ -258,7 +268,9 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 		pretty:     pretty,
 		geojson:    geojson,
 		collection: collection,
-		response:   rchan}
+		response:   rchan,
+		closer:     closeChan,
+	}
 
 	// ... and send to appropriate channel
 	if med < QuickMediumThreshold {
@@ -272,8 +284,16 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 		slow <- work
 	}
 
+	var rv SqlResponse
+
 	// wait for response
-	rv := <-rchan
+	select {
+	case rv = <-rchan:
+	case <-r.Context().Done():
+		closeChan <- struct{}{}
+		log.Printf("request #%d: client hung up before query got completed", id)
+		return
+	}
 
 	var elapsed = time.Now().UnixMilli() - startTime
 
