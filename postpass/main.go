@@ -213,6 +213,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse, 1)
 	closeChan := make(chan struct{}, 1)
+	defer close(closeChan)
 
 	writer.Header().Set("Access-Control-Allow-Origin", "*")
 	writer.Header().Set("Content-Type", "application/json")
