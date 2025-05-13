@@ -163,21 +163,22 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	}
 }
 
-func explain(db *sql.DB, query string) (float64, float64, error) {
+func explain(db *sql.DB, query string, queueOnly bool) ([]map[string]any, float64, float64, error) {
 	var unparsedResult []byte
-	var parsedResult []struct {
+	var structuredParsedResult []struct {
 		Plan struct {
 			Startup float64 `json:"Startup Cost"`
 			Total   float64 `json:"Total Cost"`
 		} `json:"Plan"`
 	}
+	var unstructuredParsedResult []map[string]any
 
 	// yes there is a possible SQL injection here but risk mitigation
 	// must be done on PostgreSQL side - we do not want to build an SQL parser
 	rows, err := db.Query(fmt.Sprintf("EXPLAIN (FORMAT JSON) (%s)", query))
 
 	if err != nil {
-		return 0, 0, err
+		return nil, 0, 0, err
 	}
 
 	// read only one row of EXPLAIN result
@@ -189,16 +190,23 @@ func explain(db *sql.DB, query string) (float64, float64, error) {
 	// discard query
 	defer rows.Close()
 
-	err = json.Unmarshal(unparsedResult, &parsedResult)
+	// parse query costs
+	err = json.Unmarshal(unparsedResult, &structuredParsedResult)
 	if err != nil {
-		return 0, 0, err
+		return nil, 0, 0, err
+	}
+	if len(structuredParsedResult) != 1 {
+		return nil, 0, 0, fmt.Errorf("could not determine costs from explain output")
+	}
+	if !queueOnly {
+		// parse full plan for json response
+		err = json.Unmarshal(unparsedResult, &unstructuredParsedResult)
+		if err != nil {
+			return nil, 0, 0, err
+		}
 	}
 
-	if len(parsedResult) != 1 {
-		return 0, 0, fmt.Errorf("could not determine costs from explain output")
-	}
-
-	return parsedResult[0].Plan.Startup, parsedResult[0].Plan.Total, nil
+	return unstructuredParsedResult, structuredParsedResult[0].Plan.Startup, structuredParsedResult[0].Plan.Total, nil
 }
 
 /*
@@ -209,7 +217,7 @@ func explain(db *sql.DB, query string) (float64, float64, error) {
  * and when EXPLAIN successful, sends the request to one of
  * three classes of worker.
  */
-func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
+func handleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse, 1)
 	closeChan := make(chan struct{}, 1)
@@ -253,7 +261,7 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 
 	var startTime = time.Now().UnixMilli()
 
-	from, to, err := explain(db, data)
+	_, from, to, err := explain(db, data, true)
 	if err != nil {
 		log.Printf("request #%d: error in EXPLAIN: '%s'\n", id, err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
@@ -311,6 +319,55 @@ func handleApi(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick c
 	fmt.Fprintf(writer, "%s", rv.result)
 }
 
+func handleExplain(db *sql.DB, writer http.ResponseWriter, r *http.Request) {
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Content-Type", "application/json")
+
+	// process GET/POST parameters
+	r.ParseForm()
+	tData := r.Form["data"]
+	if tData == nil {
+		log.Printf("no data field given\n")
+		http.Error(writer, "no data field given", http.StatusBadRequest)
+		return
+	}
+	data := tData[0]
+
+	log.Printf("explain request: query '%s'\n",
+		strings.Join(strings.Fields(strings.TrimSpace(data)), " "))
+
+	var startTime = time.Now().UnixMilli()
+
+	full, from, to, err := explain(db, data, false)
+	if err != nil {
+		log.Printf("request #%d: error in EXPLAIN: '%s'\n", err.Error())
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// use average of two cost values given by EXPLAIN
+	med := int((from + to) / 2)
+
+	response := map[string]any{"plan": full}
+
+	// ... and send the queue decision back to the client
+	if med < QuickMediumThreshold {
+		response["queue"] = "quick"
+	} else if med < MediumSlowThreshold {
+		response["queue"] = "medium"
+	} else {
+		response["queue"] = "slow"
+	}
+
+	err = json.NewEncoder(writer).Encode(response)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	}
+
+	//fmt.Fprint(writer, "slow")
+	log.Printf("explain request: completed after %dms\n", time.Now().UnixMilli()-startTime)
+}
+
 /*
  * main program
  */
@@ -364,7 +421,11 @@ func main() {
 
 	// set up callback for /interpreter URL
 	http.HandleFunc("/interpreter", func(w http.ResponseWriter, r *http.Request) {
-		handleApi(db, slow_jobs, medium_jobs, quick_jobs, w, r)
+		handleInterpreter(db, slow_jobs, medium_jobs, quick_jobs, w, r)
+	})
+	// set up callback for /explain URL
+	http.HandleFunc("/explain", func(w http.ResponseWriter, r *http.Request) {
+		handleExplain(db, w, r)
 	})
 
 	log.Printf("Listening on :%d", ListenPort)
