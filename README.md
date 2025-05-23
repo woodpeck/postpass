@@ -81,6 +81,8 @@ in front of Postpass, for example Apache:
 
 ## Using
 
+### Curl
+
 While GET requests are supported, POST requests are probably the better way 
 to use the service. Here's a simple test query that will load fast food POIs
 from your local osm2pgsql database:
@@ -91,3 +93,31 @@ from your local osm2pgsql database:
         WHERE amenity='fast_food' 
         AND way && st_setsrid(st_makebox2d(st_makepoint(8.34,48.97),st_makepoint(8.46,49.03)), 4326)"
 
+### ChatGPT
+
+This prompt helps to generate good results.
+
+> INTRO:
+> We need a CURL command with an PostGIS PostgreSQL query that will Query an OSM Database Exctract.
+> The service we are using is https://github.com/woodpeck/postpass, https://github.com/woodpeck/postpass-ops.
+> The DB Schema is defined in https://github.com/woodpeck/postpass-ops/blob/main/SCHEMA.md
+> 
+> Parameters:
+> - Without params, the API returns GeoJSON
+> - With `--data-urlencode "options[geojson]=false"` the API returns JSON (no Geometry / GeoJSON)
+> 
+> Here are examples:
+> ```
+>     curl -g https://postpass.geofabrik.de/api/0.2/ --data-urlencode "data=
+>         SELECT name, way 
+>         FROM planet_osm_point
+>         WHERE amenity='fast_food' 
+>         AND way && st_setsrid(st_makebox2d(st_makepoint(8.34,48.97),st_makepoint(8.46,49.03)), 4326)"
+> ```
+> 
+> Return the curl command. Remember that the query should never have a `;` at the end.
+> When asked for stats on tags, also return the total for the reference tag.
+>
+> ---
+> MY QUESTION:
+> …
