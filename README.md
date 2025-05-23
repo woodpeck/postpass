@@ -93,9 +93,9 @@ from your local osm2pgsql database:
         WHERE amenity='fast_food' 
         AND way && st_setsrid(st_makebox2d(st_makepoint(8.34,48.97),st_makepoint(8.46,49.03)), 4326)"
 
-### ChatGPT
+### LLM
 
-This prompt helps to generate good results.
+This prompt helps to generate good results with LLMs like ChatGPT.
 
 > INTRO:
 > We need a CURL command with an PostGIS PostgreSQL query that will Query an OSM Database Exctract.
