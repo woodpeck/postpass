@@ -115,6 +115,22 @@ This prompt helps to generate good results.
 >         AND way && st_setsrid(st_makebox2d(st_makepoint(8.34,48.97),st_makepoint(8.46,49.03)), 4326)"
 > ```
 > 
+> ```
+>     curl -g https://postpass.geofabrik.de/api/0.2/ --data-urlencode "data=
+>        SELECT
+>            admin.tags->>'name' AS country,
+>            COUNT(point.*) AS ref_count
+>        FROM postpass_point AS point
+>        JOIN postpass_polygon AS admin
+>        ON ST_Contains(admin.geom, point.geom)
+>        WHERE
+>            point.tags->>'natural' = 'tree'
+>            AND point.tags?'ref'
+>            AND admin.tags->>'boundary'='administrative'
+>            AND admin.tags->>'admin_level'='2'
+>        GROUP BY admin.tags->>'name'
+```
+> 
 > Return the curl command. Remember that the query should never have a `;` at the end.
 > When asked for stats on tags, also return the total for the reference tag.
 >
