@@ -108,7 +108,7 @@ This prompt helps to generate good results with LLMs like ChatGPT.
 > 
 > Here are examples:
 > ```
->     curl -g https://postpass.geofabrik.de/api/0.2/ --data-urlencode "data=
+>     curl -g http://postpass.geofabrik.de/api/0.2/interpreter --data-urlencode "data=
 >         SELECT name, way 
 >         FROM planet_osm_point
 >         WHERE amenity='fast_food' 
@@ -116,7 +116,7 @@ This prompt helps to generate good results with LLMs like ChatGPT.
 > ```
 > 
 > ```
->     curl -g https://postpass.geofabrik.de/api/0.2/ --data-urlencode "data=
+>     curl -g http://postpass.geofabrik.de/api/0.2/interpreter --data-urlencode "data=
 >        SELECT
 >            admin.tags->>'name' AS country,
 >            COUNT(point.*) AS ref_count
