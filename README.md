@@ -97,42 +97,68 @@ from your local osm2pgsql database:
 
 This prompt helps to generate good results with LLMs like ChatGPT.
 
-> INTRO:
-> We need a CURL command with an PostGIS PostgreSQL query that will Query an OSM Database Exctract.
-> The service we are using is https://github.com/woodpeck/postpass, https://github.com/woodpeck/postpass-ops.
-> The DB Schema is defined in https://github.com/woodpeck/postpass-ops/blob/main/SCHEMA.md
-> 
-> Parameters:
-> - Without params, the API returns GeoJSON
-> - With `--data-urlencode "options[geojson]=false"` the API returns JSON (no Geometry / GeoJSON)
-> 
-> Here are examples:
-> ```
->     curl -g https://postpass.geofabrik.de/api/0.2/interpreter --data-urlencode "data=
->         SELECT name, way 
->         FROM planet_osm_point
->         WHERE amenity='fast_food' 
->         AND way && st_setsrid(st_makebox2d(st_makepoint(8.34,48.97),st_makepoint(8.46,49.03)), 4326)"
-> ```
-> 
-> ```
->     curl -g https://postpass.geofabrik.de/api/0.2/interpreter --data-urlencode "data=
->        SELECT
->            admin.tags->>'name' AS country,
->            COUNT(point.*) AS ref_count
->        FROM postpass_point AS point
->        JOIN postpass_polygon AS admin
->        ON ST_Contains(admin.geom, point.geom)
->        WHERE
->            point.tags->>'natural' = 'tree'
->            AND point.tags?'ref'
->            AND admin.tags->>'boundary'='administrative'
->            AND admin.tags->>'admin_level'='2'
->        GROUP BY admin.tags->>'name'
-```
-> 
-> Return the curl command. Remember that the query should never have a `;` at the end.
-> When asked for stats on tags, also return the total for the reference tag.
+
+> Please generate a `curl` command containing a SQL query that will be sent to the [Postpass API](https://github.com/woodpeck/postpass), which exposes a PostGIS-enabled PostgreSQL database with OpenStreetMap data.
+>
+> The API endpoint is `https://postpass.geofabrik.de/api/0.2/interpreter`
+>
+> The underlying database schema is described at: https://github.com/woodpeck/postpass-ops/blob/main/SCHEMA.md
+>
+> The database uses the `osm2pgsql flex` schema, storing tags as `jsonb`. You have access to the following main geometry tables:
+>
+> * `postpass_point` (geometry: Point)
+> * `postpass_line` (geometry: MultiLineString)
+> * `postpass_polygon` (geometry: MultiPolygon)
+>
+> Additionally, combined geometry views are available:
+>
+> * `postpass_pointpolygon`
+> * `postpass_pointline`
+> * `postpass_linepolygon`
+> * `postpass_pointlinepolygon`
+>
+> Tags are stored in a `jsonb` column named `tags`. Use `tags->>'key'` to retrieve values or `tags ? 'key'` to check for tag presence.
+>
+> By default, the API returns results as GeoJSON (geometry included). If geometry is **not** required, include the following in the request: `--data-urlencode "options[geojson]=false"`. Use `geojson=false` when: No geometry column (`geom`) is selected; You are returning aggregated results (e.g., `COUNT`, `GROUP BY`).
+>
+> ---
+>
+> Examples:
+>
+> 1. Return geometries (default GeoJSON):
+>
+> > curl -g [https://postpass.geofabrik.de/api/0.2/interpreter](https://postpass.geofabrik.de/api/0.2/interpreter) --data-urlencode "data=
+> > SELECT name, geom
+> > FROM postpass\_point
+> > WHERE tags->>'amenity' = 'fast\_food'
+> > AND geom && ST\_SetSRID(ST\_MakeBox2D(ST\_MakePoint(8.34, 48.97), ST\_MakePoint(8.46, 49.03)), 4326)"
+>
+> 2. Return aggregated result (no geometry, use `geojson=false`):
+>
+> > curl -g [https://postpass.geofabrik.de/api/0.2/interpreter](https://postpass.geofabrik.de/api/0.2/interpreter)
+> > \--data-urlencode "options\[geojson]=false"
+> > \--data-urlencode "data=
+> > SELECT
+> > admin.tags->>'name' AS country,
+> > COUNT(point.\*) AS ref\_count
+> > FROM postpass\_point AS point
+> > JOIN postpass\_polygon AS admin
+> > ON ST\_Contains(admin.geom, point.geom)
+> > WHERE
+> > point.tags->>'natural' = 'tree'
+> > AND point.tags ? 'ref'
+> > AND admin.tags->>'boundary' = 'administrative'
+> > AND admin.tags->>'admin\_level' = '2'
+> > GROUP BY admin.tags->>'name'"
+>
+> ---
+>
+> Always:
+>
+> * Return a full `curl` command
+> * Never include a `;` at the end of the SQL query.
+> * Use the correct table or view based on the geometry type requested
+> * Add `geojson=false` whenever geometry is **not** requested in the result set
 >
 > ---
 > MY QUESTION:
