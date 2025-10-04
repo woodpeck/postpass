@@ -89,7 +89,7 @@ from your local osm2pgsql database:
 
     curl -g https://postpass.geofabrik.de/api/0.2/interpreter --data-urlencode "data=
         SELECT name, way 
-        FROM planet_osm_point
+        FROM postpass_point
         WHERE amenity='fast_food' 
         AND way && st_setsrid(st_makebox2d(st_makepoint(8.34,48.97),st_makepoint(8.46,49.03)), 4326)"
 
