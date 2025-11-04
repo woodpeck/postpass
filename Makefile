@@ -1,2 +1,2 @@
-postpass-server: postpass/main.go
-	go build -o postpass-server postpass/main.go
+postpass-server: cmd/postpass/main.go postpass/*.go
+	go build -o postpass-server ./cmd/postpass

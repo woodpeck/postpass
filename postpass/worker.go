@@ -1,4 +1,4 @@
-package main
+package postpass
 
 import (
 	"context"
@@ -8,19 +8,19 @@ import (
 )
 
 // global request counter
-var count atomic.Int64
+var Count atomic.Int64
 
 // global counter for idle workers
-var idle [4]atomic.Int64
+var Idle [4]atomic.Int64
 
 /*
  * worker function that executes SQL queries
  *
  * arguments: database connection, worker id, channel to read jobs from
  */
-func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
+func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	var res string
-	idle[id/100].Add(1)
+	Idle[id/100].Add(1)
 
 	// reads job from channel
 	for task := range tasks {
@@ -32,7 +32,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		}()
 
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
-		idle[id/100].Add(-1)
+		Idle[id/100].Add(-1)
 
 		// this executes the request on the database.
 		var rows *sql.Rows
@@ -89,7 +89,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
-			idle[id/100].Add(1)
+			Idle[id/100].Add(1)
 			continue
 		}
 
@@ -104,7 +104,7 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
-			idle[id/100].Add(1)
+			Idle[id/100].Add(1)
 			continue
 		}
 
@@ -112,6 +112,6 @@ func worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		// send response back on channel
 		task.response <- SqlResponse{err: false, result: res}
-		idle[id/100].Add(1)
+		Idle[id/100].Add(1)
 	}
 }

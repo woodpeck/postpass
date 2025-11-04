@@ -17,6 +17,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"postpass/postpass"
 )
 
 /*
@@ -29,12 +30,16 @@ func main() {
 
 	// open a connection to the database
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=36000000'",
-		Host, Port, User, Password, DBName)
+		postpass.Host, postpass.Port, postpass.User, postpass.Password, postpass.DBName)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("error closing db: %s\n", err.Error())
+		}
+	}()
 
 	db.SetMaxIdleConns(100)
 	db.SetMaxOpenConns(200)
@@ -47,17 +52,17 @@ func main() {
 	}
 
 	// initialize goroutines
-	quick_jobs := make(chan WorkItem, 50)
+	quick_jobs := make(chan postpass.WorkItem, 50)
 	for w := 1; w <= 10; w++ {
-		go worker(db, 100+w, quick_jobs)
+		go postpass.Worker(db, 100+w, quick_jobs)
 	}
-	medium_jobs := make(chan WorkItem, 50)
+	medium_jobs := make(chan postpass.WorkItem, 50)
 	for w := 1; w <= 4; w++ {
-		go worker(db, 200+w, medium_jobs)
+		go postpass.Worker(db, 200+w, medium_jobs)
 	}
-	slow_jobs := make(chan WorkItem, 50)
+	slow_jobs := make(chan postpass.WorkItem, 50)
 	for w := 1; w <= 2; w++ {
-		go worker(db, 300+w, slow_jobs)
+		go postpass.Worker(db, 300+w, slow_jobs)
 	}
 
 	// set up a ticker to log how many busy workers there are
@@ -66,20 +71,20 @@ func main() {
 		for {
 			<-ticker.C
 			log.Printf("idle workers: %d/10 quick, %d/4 medium, %d/2 slow; request count: %d\n",
-				idle[1].Load(), idle[2].Load(), idle[3].Load(), count.Load())
+				postpass.Idle[1].Load(), postpass.Idle[2].Load(), postpass.Idle[3].Load(), postpass.Count.Load())
 		}
 	}()
 
 	// set up callback for /interpreter URL
 	http.HandleFunc("/interpreter", func(w http.ResponseWriter, r *http.Request) {
-		handleInterpreter(db, slow_jobs, medium_jobs, quick_jobs, w, r)
+		postpass.HandleInterpreter(db, slow_jobs, medium_jobs, quick_jobs, w, r)
 	})
 	// set up callback for /explain URL
 	http.HandleFunc("/explain", func(w http.ResponseWriter, r *http.Request) {
-		handleExplain(db, w, r)
+		postpass.HandleExplain(db, w, r)
 	})
 
-	log.Printf("Listening on :%d", ListenPort)
+	log.Printf("Listening on :%d", postpass.ListenPort)
 	// endless loop
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", ListenPort), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", postpass.ListenPort), nil))
 }

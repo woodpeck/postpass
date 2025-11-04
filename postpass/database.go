@@ -1,4 +1,4 @@
-package main
+package postpass
 
 import (
 	"database/sql"

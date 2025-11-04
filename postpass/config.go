@@ -1,4 +1,4 @@
-package main
+package postpass
 
 /* config stuff
  * should go into commandline arguments

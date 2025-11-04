@@ -1,4 +1,4 @@
-package main
+package postpass
 
 import (
 	"database/sql"
@@ -19,7 +19,7 @@ import (
  * and when EXPLAIN successful, sends the request to one of
  * three classes of worker.
  */
-func handleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
+func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem, quick chan<- WorkItem, writer http.ResponseWriter, r *http.Request) {
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse, 1)
 	closeChan := make(chan struct{}, 1)
@@ -56,7 +56,7 @@ func handleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 		collection, _ = strconv.ParseBool(tCollection[0])
 	}
 
-	id := count.Add(1)
+	id := Count.Add(1)
 
 	log.Printf("request #%d: query '%s'\n", id,
 		strings.Join(strings.Fields(strings.TrimSpace(data)), " "))
@@ -121,7 +121,7 @@ func handleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	fmt.Fprintf(writer, "%s", rv.result)
 }
 
-func handleExplain(db *sql.DB, writer http.ResponseWriter, r *http.Request) {
+func HandleExplain(db *sql.DB, writer http.ResponseWriter, r *http.Request) {
 	writer.Header().Set("Access-Control-Allow-Origin", "*")
 	writer.Header().Set("Content-Type", "application/json")
 
