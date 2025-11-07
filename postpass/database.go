@@ -1,6 +1,7 @@
 package postpass
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -18,7 +19,13 @@ func explain(db *sql.DB, query string, queueOnly bool) ([]map[string]any, float6
 
 	// yes there is a possible SQL injection here but risk mitigation
 	// must be done on PostgreSQL side - we do not want to build an SQL parser
-	rows, err := db.Query(fmt.Sprintf("EXPLAIN (FORMAT JSON) (%s)", query))
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query(fmt.Sprintf("EXPLAIN (FORMAT JSON) (%s)", query))
 
 	if err != nil {
 		return nil, 0, 0, err
