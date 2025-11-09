@@ -119,7 +119,7 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 
 	log.Printf("request #%d: completed after %dms, response size is %d\n",
 		id, elapsed, len(rv.result))
-	fmt.Fprintf(writer, "%s", rv.result)
+	_,_  = fmt.Fprintf(writer, "%s", rv.result)
 }
 
 func HandleExplain(db *sql.DB, writer http.ResponseWriter, r *http.Request) {

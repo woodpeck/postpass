@@ -34,7 +34,9 @@ func explain(db *sql.DB, query string, queueOnly bool) ([]map[string]any, float6
 	}
 
 	// discard query
-	defer rows.Close()
+	defer func() {
+        _ = rows.Close()
+    }()
 
 	// parse query costs
 	err = json.Unmarshal(unparsedResult, &structuredParsedResult)
