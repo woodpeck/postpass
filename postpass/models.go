@@ -12,6 +12,7 @@ type WorkItem struct {
 	geojson    bool
 	pretty     bool
 	collection bool
+	own_agg    bool
 	response   chan SqlResponse
 	closer     chan struct{}
 }

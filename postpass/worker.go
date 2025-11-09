@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync/atomic"
 )
 
@@ -38,66 +39,131 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		var rows *sql.Rows
 		var err error
 
-		if !task.collection {
+        if task.own_agg && task.collection && task.geojson {
 
-			// if task.collection is not set, we execute the query as-is.
-			// this will only work if the query returns exactly one row and one column.
-			rows, err = db.QueryContext(taskCtx, task.request)
+            // this makes Postgres create GeoJSON for individual rows, 
+            // and aggregates them into a collection here instead of 
+            // using Postgres' json_agg function.
+            // A separate query is therefore needed to access the 
+            // metadata.
 
-		} else if task.geojson && task.pretty {
+            var builder strings.Builder
+            var comma string
+            var line string
 
-			// this generates prettified GeoJSON
+            rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+                `SELECT jsonb_build_object(
+                    'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
+                    'generator', 'Postpass API 0.2'
+                 )`))
 
-			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
-				`SELECT jsonb_pretty(jsonb_build_object(
-                    'type', 'FeatureCollection',
-                    'properties', jsonb_build_object(
-                       'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                       'generator', 'Postpass API 0.2'
-                       ),
-                    'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb)))
-                FROM (%s) as t;`, task.request))
+            if err != nil {
+                task.response <- SqlResponse{err: true, result: err.Error()}
+                Idle[id/100].Add(1)
+                continue
+            }
 
-		} else if task.geojson && !task.pretty {
+            builder.WriteString("{ \"type\": \"FeatureCollection\", \"properties\": ")
+            rows.Next()
+            err = rows.Scan(&res)
+            builder.WriteString(res)
+            builder.WriteString(", \"features\": [ ")
+                    
+            rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+                `SELECT ST_AsGeoJSON(t.*) FROM (%s) as t;`, task.request))
 
-			// this generates un-prettified GeoJSON
+            if err != nil {
+                task.response <- SqlResponse{err: true, result: err.Error()}
+                Idle[id/100].Add(1)
+                continue
+            }
 
-			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
-				`SELECT json_build_object(
-                    'type', 'FeatureCollection',
-                    'properties', jsonb_build_object(
-                       'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                       'generator', 'Postpass API 0.2'
-                       ),
-                    'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb))
-                FROM (%s) as t;`, task.request))
+            for rows.Next() {
+                err = rows.Scan(&line)
+                if err != nil {
+                    break;
+                }
+                builder.WriteString(comma);
+                builder.WriteString(line);
+                comma = ",";
+            }
 
-		} else {
+            if err != nil {
+                task.response <- SqlResponse{err: true, result: err.Error()}
+                Idle[id/100].Add(1)
+                continue
+            }
 
-			// this collects results over multiple rows and columns,
-			// but doesn't attempt to build GeoJSON
+            builder.WriteString("]}");
+            res = builder.String()
 
-			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
-				`SELECT jsonb_pretty(jsonb_build_object(
-                    'metadata', jsonb_build_object(
-                       'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                       'generator', 'Postpass API 0.2'
-                       ),
-                    'result', jsonb_agg(t.*)::jsonb))
-                FROM (%s) as t;`, task.request))
-		}
+        } else {
 
-		if err != nil {
-			task.response <- SqlResponse{err: true, result: err.Error()}
-			Idle[id/100].Add(1)
-			continue
-		}
+            // in all other (non-own_agg) cases, the complete response is built
+            // in PostgreSQL. this can lead to "JSON too large" problems
+            // (at over ~ 250 MB)
 
-		// parse only one line of results
-		rows.Next()
+            if !task.collection {
 
-		// scan only one column of the result line
-		err = rows.Scan(&res)
+                // if task.collection is not set, we execute the query as-is.
+                // this will only work if the query returns exactly one row and one column.
+                rows, err = db.QueryContext(taskCtx, task.request)
+
+            } else if task.geojson && task.pretty {
+
+                // this generates prettified GeoJSON
+
+                rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+                    `SELECT jsonb_pretty(jsonb_build_object(
+                        'type', 'FeatureCollection',
+                        'properties', jsonb_build_object(
+                           'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
+                           'generator', 'Postpass API 0.2'
+                           ),
+                        'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb)))
+                    FROM (%s) as t;`, task.request))
+
+            } else if task.geojson && !task.pretty {
+
+                // this generates un-prettified GeoJSON
+
+                rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+                    `SELECT json_build_object(
+                        'type', 'FeatureCollection',
+                        'properties', jsonb_build_object(
+                           'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
+                           'generator', 'Postpass API 0.2'
+                           ),
+                        'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb))
+                    FROM (%s) as t;`, task.request))
+
+            } else {
+
+                // this collects results over multiple rows and columns,
+                // but doesn't attempt to build GeoJSON
+
+                rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+                    `SELECT jsonb_pretty(jsonb_build_object(
+                        'metadata', jsonb_build_object(
+                           'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
+                           'generator', 'Postpass API 0.2'
+                           ),
+                        'result', jsonb_agg(t.*)::jsonb))
+                    FROM (%s) as t;`, task.request))
+            }
+
+            if err != nil {
+                task.response <- SqlResponse{err: true, result: err.Error()}
+                Idle[id/100].Add(1)
+                continue
+            }
+
+            // parse only one line of results
+            rows.Next()
+
+            // scan only one column of the result line
+            err = rows.Scan(&res)
+        }
 
 		// discard result
 		rows.Close()

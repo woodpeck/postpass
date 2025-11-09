@@ -56,10 +56,17 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 		collection, _ = strconv.ParseBool(tCollection[0])
 	}
 
+	own_agg := true
+	tOwnAgg := r.Form["options[own_agg]"]
+	if tOwnAgg != nil {
+		own_agg, _ = strconv.ParseBool(tOwnAgg[0])
+	}
+
 	id := Count.Add(1)
 
-	log.Printf("request #%d: query '%s'\n", id,
-		strings.Join(strings.Fields(strings.TrimSpace(data)), " "))
+	log.Printf("request #%d: query '%s' g=%t p=%t c=%t o=%t\n", id,
+		strings.Join(strings.Fields(strings.TrimSpace(data)), " "),
+        geojson, pretty, collection, own_agg)
 
 	var startTime = time.Now().UnixMilli()
 
@@ -79,6 +86,7 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 		pretty:     pretty,
 		geojson:    geojson,
 		collection: collection,
+		own_agg:    own_agg,
 		response:   rchan,
 		closer:     closeChan,
 	}
