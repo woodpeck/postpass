@@ -51,21 +51,22 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
             var comma string
             var line string
 
-            rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+            rows, err = db.QueryContext(taskCtx, 
                 `SELECT jsonb_build_object(
                     'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
                     'generator', 'Postpass API 0.2'
-                 )`))
+                 )`)
 
             if err != nil {
-                task.response <- SqlResponse{err: true, result: err.Error()}
-                Idle[id/100].Add(1)
-                continue
+                goto sqlerror
             }
 
             builder.WriteString("{ \"type\": \"FeatureCollection\", \"properties\": ")
             rows.Next()
             err = rows.Scan(&res)
+            if err != nil {
+                goto sqlerror
+            }
             builder.WriteString(res)
             builder.WriteString(", \"features\": [ ")
                     
@@ -73,9 +74,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
                 `SELECT ST_AsGeoJSON(t.*) FROM (%s) as t;`, task.request))
 
             if err != nil {
-                task.response <- SqlResponse{err: true, result: err.Error()}
-                Idle[id/100].Add(1)
-                continue
+                goto sqlerror
             }
 
             for rows.Next() {
@@ -89,9 +88,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
             }
 
             if err != nil {
-                task.response <- SqlResponse{err: true, result: err.Error()}
-                Idle[id/100].Add(1)
-                continue
+                goto sqlerror
             }
 
             builder.WriteString("]}");
@@ -139,9 +136,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
             }
 
             if err != nil {
-                task.response <- SqlResponse{err: true, result: err.Error()}
-                Idle[id/100].Add(1)
-                continue
+                goto sqlerror
             }
 
             // parse only one line of results
@@ -151,19 +146,23 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
             err = rows.Scan(&res)
         }
 
-		// discard result
-		rows.Close()
-
 		if err != nil {
-			task.response <- SqlResponse{err: true, result: err.Error()}
-			Idle[id/100].Add(1)
-			continue
+			goto sqlerror
 		}
+
+		// discard result
+		_ = rows.Close()
 
 		// log.Printf("worker %d done\n", id)
 
 		// send response back on channel
 		task.response <- SqlResponse{err: false, result: res}
 		Idle[id/100].Add(1)
+        continue
+
+        sqlerror:
+        task.response <- SqlResponse{err: true, result: err.Error()}
+        Idle[id/100].Add(1)
+        continue
 	}
 }

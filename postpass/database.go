@@ -29,6 +29,9 @@ func explain(db *sql.DB, query string, queueOnly bool) ([]map[string]any, float6
 
 	// read only one column
 	err = rows.Scan(&unparsedResult)
+	if err != nil {
+		return nil, 0, 0, err
+	}
 
 	// discard query
 	defer rows.Close()

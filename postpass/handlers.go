@@ -29,7 +29,7 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	writer.Header().Set("Content-Type", "application/json")
 
 	// process GET/POST parameters
-	r.ParseForm()
+	_ = r.ParseForm()
 	tData := r.Form["data"]
 	if tData == nil {
 		log.Printf("no data field given\n")
@@ -127,7 +127,7 @@ func HandleExplain(db *sql.DB, writer http.ResponseWriter, r *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
 	// process GET/POST parameters
-	r.ParseForm()
+	_  = r.ParseForm()
 	tData := r.Form["data"]
 	if tData == nil {
 		log.Printf("no data field given\n")
@@ -143,7 +143,7 @@ func HandleExplain(db *sql.DB, writer http.ResponseWriter, r *http.Request) {
 
 	full, from, to, err := explain(db, data, false)
 	if err != nil {
-		log.Printf("request #%d: error in EXPLAIN: '%s'\n", err.Error())
+		log.Printf("explain request: error in EXPLAIN: '%s'\n", err.Error())
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
