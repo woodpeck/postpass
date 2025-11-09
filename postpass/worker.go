@@ -109,21 +109,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
                 // this will only work if the query returns exactly one row and one column.
                 rows, err = db.QueryContext(taskCtx, task.request)
 
-            } else if task.geojson && task.pretty {
-
-                // this generates prettified GeoJSON
-
-                rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
-                    `SELECT jsonb_pretty(jsonb_build_object(
-                        'type', 'FeatureCollection',
-                        'properties', jsonb_build_object(
-                           'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),
-                           'generator', 'Postpass API 0.2'
-                           ),
-                        'features', coalesce(jsonb_agg(ST_AsGeoJSON(t.*)::json), '[]'::jsonb)))
-                    FROM (%s) as t;`, task.request))
-
-            } else if task.geojson && !task.pretty {
+            } else if task.geojson {
 
                 // this generates un-prettified GeoJSON
 

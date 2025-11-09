@@ -10,7 +10,6 @@ type SqlResponse struct {
 type WorkItem struct {
 	request    string
 	geojson    bool
-	pretty     bool
 	collection bool
 	own_agg    bool
 	response   chan SqlResponse

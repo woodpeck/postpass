@@ -44,12 +44,6 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 		geojson, _ = strconv.ParseBool(tGeojson[0])
 	}
 
-	pretty := true
-	tPretty := r.Form["options[pretty]"]
-	if tPretty != nil {
-		pretty, _ = strconv.ParseBool(tPretty[0])
-	}
-
 	collection := true
 	tCollection := r.Form["options[collection]"]
 	if tCollection != nil {
@@ -64,9 +58,9 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 
 	id := Count.Add(1)
 
-	log.Printf("request #%d: query '%s' g=%t p=%t c=%t o=%t\n", id,
+	log.Printf("request #%d: query '%s' g=%t c=%t o=%t\n", id,
 		strings.Join(strings.Fields(strings.TrimSpace(data)), " "),
-        geojson, pretty, collection, own_agg)
+        geojson, collection, own_agg)
 
 	var startTime = time.Now().UnixMilli()
 
@@ -83,7 +77,6 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	// create work item...
 	work := WorkItem{
 		request:    data,
-		pretty:     pretty,
 		geojson:    geojson,
 		collection: collection,
 		own_agg:    own_agg,
