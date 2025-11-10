@@ -38,17 +38,25 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		var rows *sql.Rows
 		var err error
 
+		tx, err := db.BeginTx(taskCtx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			task.response <- SqlResponse{err: true, result: err.Error()}
+			Idle[id/100].Add(1)
+			continue
+		}
+		defer tx.Rollback()
+
 		if !task.collection {
 
 			// if task.collection is not set, we execute the query as-is.
 			// this will only work if the query returns exactly one row and one column.
-			rows, err = db.QueryContext(taskCtx, task.request)
+			rows, err = tx.QueryContext(taskCtx, task.request)
 
 		} else if task.geojson && task.pretty {
 
 			// this generates prettified GeoJSON
 
-			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+			rows, err = tx.QueryContext(taskCtx, fmt.Sprintf(
 				`SELECT jsonb_pretty(jsonb_build_object(
                     'type', 'FeatureCollection',
                     'properties', jsonb_build_object(
@@ -62,7 +70,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 			// this generates un-prettified GeoJSON
 
-			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+			rows, err = tx.QueryContext(taskCtx, fmt.Sprintf(
 				`SELECT json_build_object(
                     'type', 'FeatureCollection',
                     'properties', jsonb_build_object(
@@ -77,7 +85,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			// this collects results over multiple rows and columns,
 			// but doesn't attempt to build GeoJSON
 
-			rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+			rows, err = tx.QueryContext(taskCtx, fmt.Sprintf(
 				`SELECT jsonb_pretty(jsonb_build_object(
                     'metadata', jsonb_build_object(
                        'timestamp', (select value from osm2pgsql_properties where property='replication_timestamp'),

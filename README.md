@@ -17,6 +17,12 @@ with anything else as well.
 See [woodpeck/postpass-ops](https://github.com/woodpeck/postpass-ops) for 
 docs on the instance of this software at `postpass.geofabrik.de`.
 
+## Security
+
+Postpass is designed to be a publicly accessible service. To prevent abuse, it is important to configure the database user with read-only permissions.
+
+For more information on security, see the [security documentation](postpass/README.md).
+
 ## Building
 
 A simple
