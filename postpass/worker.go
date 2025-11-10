@@ -67,6 +67,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
             if err != nil {
                 goto sqlerror
             }
+		    _ = rows.Close()
             builder.WriteString(res)
             builder.WriteString(", \"features\": [ ")
                     
