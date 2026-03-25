@@ -8,10 +8,8 @@ type SqlResponse struct {
 
 // WorkItem encapsulates a job sent to a worker
 type WorkItem struct {
-	request    string
-	geojson    bool
-	collection bool
-	own_agg    bool
-	response   chan SqlResponse
-	closer     chan struct{}
+	request       string
+	output_format string
+	response      chan SqlResponse
+	closer        chan struct{}
 }

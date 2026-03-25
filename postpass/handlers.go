@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -26,7 +25,7 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	defer close(closeChan)
 
 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-	writer.Header().Set("Content-Type", "application/json")
+	//writer.Header().Set("Content-Type", "application/json")
 
 	// process GET/POST parameters
 	_ = r.ParseForm()
@@ -38,29 +37,22 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	}
 	data := tData[0]
 
-	geojson := true
-	tGeojson := r.Form["options[geojson]"]
-	if tGeojson != nil {
-		geojson, _ = strconv.ParseBool(tGeojson[0])
+	output_format := "geojson"
+	allowed_output_formats := []string{"geojson", "csv"}
+	wanted_output_format := r.Form["output_format"]
+	if wanted_output_format != nil {
+		for _, v := range allowed_output_formats {
+			if wanted_output_format[0] == v {
+				output_format = v;
+			}
+		}
 	}
 
-	collection := true
-	tCollection := r.Form["options[collection]"]
-	if tCollection != nil {
-		collection, _ = strconv.ParseBool(tCollection[0])
-	}
-
-	own_agg := true
-	tOwnAgg := r.Form["options[own_agg]"]
-	if tOwnAgg != nil {
-		own_agg, _ = strconv.ParseBool(tOwnAgg[0])
-	}
 
 	id := Count.Add(1)
 
-	log.Printf("request #%d: query '%s' g=%t c=%t o=%t\n", id,
-		strings.Join(strings.Fields(strings.TrimSpace(data)), " "),
-        geojson, collection, own_agg)
+	log.Printf("request #%d: query '%s' of='%s'\n", id,
+		strings.Join(strings.Fields(strings.TrimSpace(data)), " "), output_format)
 
 	var startTime = time.Now().UnixMilli()
 
@@ -76,12 +68,10 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 
 	// create work item...
 	work := WorkItem{
-		request:    data,
-		geojson:    geojson,
-		collection: collection,
-		own_agg:    own_agg,
-		response:   rchan,
-		closer:     closeChan,
+		request:       data,
+		output_format: output_format,
+		response:      rchan,
+		closer:        closeChan,
 	}
 
 	// ... and send to appropriate channel
