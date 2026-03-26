@@ -25,7 +25,6 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	defer close(closeChan)
 
 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-	//writer.Header().Set("Content-Type", "application/json")
 
 	// process GET/POST parameters
 	_ = r.ParseForm()
@@ -106,6 +105,8 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 			id, elapsed, rv.result)
 		http.Error(writer, rv.result, http.StatusBadRequest)
 	}
+
+	writer.Header().Set("Content-Type", rv.content_type)
 
 	log.Printf("request #%d: completed after %dms, response size is %d\n",
 		id, elapsed, len(rv.result))

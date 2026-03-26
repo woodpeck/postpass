@@ -21,6 +21,7 @@ var Idle [4]atomic.Int64
  */
 func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	var res string
+	var content_type string
 	var err error
 	Idle[id/100].Add(1)
 
@@ -38,6 +39,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		if task.output_format == "geojson" {
 			res, err = geojson_output(db, taskCtx, task)
+			content_type = "application/geojson"
 		} else {
 			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
 		}
@@ -49,7 +51,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		}
 
 		// send response back on channel
-		task.response <- SqlResponse{err: false, result: res}
+		task.response <- SqlResponse{err: false, content_type: content_type, result: res}
 		Idle[id/100].Add(1)
         continue
 
