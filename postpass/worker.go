@@ -48,10 +48,16 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			res, err = json_output(db, taskCtx, task)
 			content_type = "application/json"
 		} else if task.output_format == "csv" {
-			res, err = csv_output(db, taskCtx, task, ',')
+			res, err = csv_output(db, taskCtx, task, ',', true)
 			content_type = "text/csv"
 		} else if task.output_format == "tsv" {
-			res, err = csv_output(db, taskCtx, task, '\t')
+			res, err = csv_output(db, taskCtx, task, '\t', true)
+			content_type = "text/tsv"
+		} else if task.output_format == "csv_headerless" {
+			res, err = csv_output(db, taskCtx, task, ',', false)
+			content_type = "text/csv"
+		} else if task.output_format == "tsv_headerless" {
+			res, err = csv_output(db, taskCtx, task, '\t', false)
 			content_type = "text/tsv"
 		} else if task.output_format == "html_table" {
 			res, err = html_table_output(db, taskCtx, task)
@@ -208,7 +214,7 @@ func json_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, er
 		return res, err
 }
 
-func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem, comma rune) (string, error) {
+func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem, comma rune, show_header bool) (string, error) {
 		// this executes the request on the database.
 		var rows *sql.Rows
 		var res string
@@ -229,9 +235,11 @@ func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem, comma rune) 
 		if err != nil {
 			return "", err
 		}
-		err = writer.Write(columns)
-		if err != nil {
-			return "", err
+		if show_header {
+			err = writer.Write(columns)
+			if err != nil {
+				return "", err
+			}
 		}
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
