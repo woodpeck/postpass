@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"encoding/csv"
+	"html"
 )
 
 // global request counter
@@ -51,6 +52,9 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		} else if task.output_format == "tsv" {
 			res, err = csv_output(db, taskCtx, task, '\t')
 			content_type = "text/tsv"
+		} else if task.output_format == "html_table" {
+			res, err = html_table_output(db, taskCtx, task)
+			content_type = "text/html"
 		} else {
 			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
 		}
@@ -269,6 +273,68 @@ func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem, comma rune) 
 		}
 
 		res = buf.String()
+		
+		return res, err
+}
+
+func html_table_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
+		// this executes the request on the database.
+		var rows *sql.Rows
+		var res string
+		var err error
+		var builder strings.Builder
+
+
+		builder.WriteString("<table>\n")
+
+		rows, err = db.QueryContext(taskCtx, task.request)
+
+		if err != nil {
+			return "", err
+		}
+
+		columns, err := rows.Columns()
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		builder.WriteString("<thead>")
+		for _, col := range columns {
+			builder.WriteString("<th>")
+			builder.WriteString(html.EscapeString(fmt.Sprintf("%v", col)))
+			builder.WriteString("</th>")
+		}
+		builder.WriteString("</thead>\n")
+
+		for rows.Next() {
+			if err := rows.Scan(valuePtrs...); err != nil {
+				return "", err
+			}
+			builder.WriteString("<tr>")
+
+			for _, val := range values {
+				builder.WriteString("<td>")
+				// Handle NULL values
+				if val != nil {
+					builder.WriteString(html.EscapeString(fmt.Sprintf("%v", val)))
+				}
+				builder.WriteString("</td>")
+			}
+			builder.WriteString("</tr>\n")
+
+		}
+		builder.WriteString("</table>\n")
+
+		if err != nil {
+			return "", err
+		}
+
+		// discard result
+		_ = rows.Close()
+
+		res = builder.String()
 		
 		return res, err
 }
