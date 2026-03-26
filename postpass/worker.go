@@ -36,7 +36,11 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
 		Idle[id/100].Add(-1)
 
-		res, err = geojson_output(db, taskCtx, task)
+		if task.output_format == "geojson" {
+			res, err = geojson_output(db, taskCtx, task)
+		} else {
+			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
+		}
 
 		if err != nil {
 			task.response <- SqlResponse{err: true, result: err.Error()}
