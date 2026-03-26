@@ -37,13 +37,22 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 	data := tData[0]
 
 	output_format := "geojson"
+	found_valid_format := false
 	allowed_output_formats := []string{"geojson", "json", "csv", "csv_headerless", "tsv", "tsv_headerless", "html_table", "md_table"}
 	wanted_output_format := r.Form["output_format"]
 	if wanted_output_format != nil {
+		wanted_output_format := wanted_output_format[0]
 		for _, v := range allowed_output_formats {
-			if wanted_output_format[0] == v {
+			if wanted_output_format == v {
 				output_format = v;
+				found_valid_format =  true
 			}
+		}
+
+		if ! found_valid_format {
+			log.Printf("Output format of %s is not accepted\n", wanted_output_format)
+			http.Error(writer, fmt.Sprintf("Output format of %s is not accepted", wanted_output_format), http.StatusBadRequest)
+			return
 		}
 	}
 
