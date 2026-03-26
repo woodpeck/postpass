@@ -48,6 +48,9 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		} else if task.output_format == "csv" {
 			res, err = csv_output(db, taskCtx, task, ',')
 			content_type = "text/csv"
+		} else if task.output_format == "tsv" {
+			res, err = csv_output(db, taskCtx, task, '\t')
+			content_type = "text/tsv"
 		} else {
 			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
 		}
