@@ -102,6 +102,64 @@ read that file. Here the conents of the file `query.sql` will be read.
 
     curl -G http://localhost:8081/interpreter --data-urlencode "data@query.sql"
 
+#### Output format
+
+By default, a single GeoJSON `FeatureCollection` is returned. This can be changed with the `output_foramt` parameter.
+
+e.g.
+
+    curl -G http://localhost:8081/interpreter --data-urlencode "output_format=md_table" --data-urlencode "data=SELECT count(*), tags->>'name' IS NULL as is_null from postpass_point group by is_null"
+    | count   | is_null |
+    |---------|---------|
+    | 141183  | false   |
+    | 2404499 | true    |
+
+Acceptable values:
+
+* **`geojson`**: (default if not defined) single GeoJSON `FeatureCollection`.
+  If each row doesn't have a geometry column, a `HTTP 400` will be returned.
+* **`html_table`**: A table in HTML
+  ```html
+  <table>
+  <thead><th>count</th><th>is_null</th></thead>
+  <tr><td>141183</td><td>false</td></tr>
+  <tr><td>2404499</td><td>true</td></tr>
+  </table>
+  ```
+* **`md_table`**: A table in Markdown
+  ```markdown
+  | count   | is_null |
+  |---------|---------|
+  | 141183  | false   |
+  | 2404499 | true    |
+  ```
+* **`json`**: JSON Array of Objects.
+   In the above example: `[{"count":141183,"is_null":false}, {"count":2404499,"is_null":true}]`.
+   NB: This uses [PostgreSQL's `to_json` function](https://www.postgresql.org/docs/current/functions-json.html#:~:text=to%5Fjson%20%28%20anyelement%20%29%20%E2%86%92%20json), which converts geometry objects to GeoJSON
+   ```
+   $ curl  -G http://localhost:8081/interpreter --data-urlencode "output_format=json" --data-urlencode "data=SELECT tags->>'name' as name, geom from postpass_point limit 1" ; echo
+[{"name":null,"geom":{"type":"Point","crs":{"type":"name","properties":{"name":"EPSG:4326"}},"coordinates":[-6.6822123,55.1341014]}}]
+   ```
+* **`csv`**: Comma Separated Values
+  ```csv
+  count,is_null
+  141183,false
+  2404499,true
+  ```
+* **`csv_headerless`**: Comma Separated Values without a header row
+  ```csv
+  141183,false
+  2404499,true
+  ```
+* **`tsv`**: Tab Seperated Values
+  ```tsv
+  count	is_null
+  141183	false
+  2404499	true
+  ```
+* **`tsv_headerless`**: TSV without header row
+
+
 ### `/explain`
 
 A [PostgreSQL `EXPLAIN` output](https://www.postgresql.org/docs/current/sql-explain.html) is returned, in [JSON output format](https://www.postgresql.org/docs/current/sql-explain.html#:~:text=JSON%20output%20formatting%3A).
