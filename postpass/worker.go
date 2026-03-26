@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 	"sync/atomic"
 	"encoding/csv"
@@ -55,8 +56,11 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		} else if task.output_format == "html_table" {
 			res, err = html_table_output(db, taskCtx, task)
 			content_type = "text/html"
+		} else if task.output_format == "md_table" {
+			res, err = markdown_table_output(db, taskCtx, task)
+			content_type = "text/plain"
 		} else {
-			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
+			log.Printf("Impossible code path. Unsupported output_format %s", task.output_format)
 		}
 
 		if err != nil {
@@ -335,6 +339,105 @@ func html_table_output(db *sql.DB, taskCtx context.Context, task WorkItem) (stri
 		_ = rows.Close()
 
 		res = builder.String()
+		
+		return res, err
+}
+
+func escapeMarkdown(s string) string {
+	// Escape backticks, backslashes, and pipes
+	s = strings.ReplaceAll(s, "`", "\\`")
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	return s
+}
+
+
+func getColumnWidths(rows [][]string) []int {
+	widths := make([]int, len(rows[0]))
+	for _, row := range rows {
+		for i, cell := range row {
+			if len(cell) > widths[i] {
+				widths[i] = len(cell)
+			}
+		}
+	}
+	return widths
+}
+
+func formatMarkdownTable(rows [][]string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+
+	// Calculate column widths
+	widths := getColumnWidths(rows)
+
+	// Build the table
+	var sb strings.Builder
+
+	// Write header row
+	for i, cell := range rows[0] {
+		sb.WriteString(fmt.Sprintf("| %-*s ", widths[i], cell))
+	}
+	sb.WriteString("|\n")
+
+	// Write separator row
+	for _, width := range widths {
+		sb.WriteString(fmt.Sprintf("|-%s-", strings.Repeat("-", width)))
+	}
+	sb.WriteString("|\n")
+
+	// Write data rows
+	for _, row := range rows[1:] {
+		for i, cell := range row {
+			sb.WriteString(fmt.Sprintf("| %-*s ", widths[i], cell))
+		}
+		sb.WriteString("|\n")
+	}
+
+	return sb.String()
+}
+
+func markdown_table_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
+		// this executes the request on the database.
+		var rows *sql.Rows
+		var table [][]string
+		var err error
+		var row []string
+
+		rows, err = db.QueryContext(taskCtx, task.request)
+
+		columns, err := rows.Columns()
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+		row = row[:0]
+		for _, col := range columns {
+			row = append(row, escapeMarkdown(fmt.Sprintf("%v", col)))
+		}
+		table = append(table, row)
+
+		for rows.Next() {
+			if err := rows.Scan(valuePtrs...); err != nil {
+				return "", err
+			}
+			row := make([]string, len(columns))
+
+			for i, val := range values {
+				if val == nil {
+					row[i] = ""
+				} else {
+					row[i] = escapeMarkdown(fmt.Sprintf("%v", val))
+				}
+			}
+			table = append(table, row)
+		}
+		// discard result
+		_ = rows.Close()
+
+		res := formatMarkdownTable(table)
 		
 		return res, err
 }
