@@ -40,6 +40,9 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		if task.output_format == "geojson" {
 			res, err = geojson_output(db, taskCtx, task)
 			content_type = "application/geojson"
+		} else if task.output_format == "json" {
+			res, err = json_output(db, taskCtx, task)
+			content_type = "application/json"
 		} else {
 			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
 		}
@@ -117,6 +120,64 @@ func geojson_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string,
 
 		// “footer” of GeoJSON
 		builder.WriteString("]}");
+
+		if err != nil {
+			return "", err
+		}
+
+		// discard result
+		_ = rows.Close()
+
+		res = builder.String()
+
+		
+		return res, err
+}
+
+func json_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
+		// this executes the request on the database.
+		var rows *sql.Rows
+		var res string
+		var err error
+
+		var builder strings.Builder
+		var line string
+		row_num := 0
+
+		// “header” of GeoJSON output
+
+		builder.WriteString("[")
+
+		// Now do each row
+				
+		rows, err = db.QueryContext(taskCtx, fmt.Sprintf(
+			`SELECT to_json(t.*) FROM (%s) as t;`, task.request))
+
+		if err != nil {
+			return "", err
+		}
+
+		for rows.Next() {
+			err = rows.Scan(&line)
+			if err != nil {
+				break;
+			}
+
+			if row_num >= 1 {
+				builder.WriteString(", ")
+			}
+
+			builder.WriteString(line);
+			row_num ++
+		}
+
+		if err != nil {
+			return "", err
+		}
+
+
+		// “footer” of GeoJSON
+		builder.WriteString("]");
 
 		if err != nil {
 			return "", err
