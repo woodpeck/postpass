@@ -21,6 +21,7 @@ var Idle [4]atomic.Int64
  */
 func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	var res string
+	var err error
 	Idle[id/100].Add(1)
 
 	// reads job from channel
@@ -35,10 +36,27 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
 		Idle[id/100].Add(-1)
 
+		res, err = geojson_output(db, taskCtx, task)
+
+		if err != nil {
+			task.response <- SqlResponse{err: true, result: err.Error()}
+			Idle[id/100].Add(1)
+			continue
+		}
+
+		// send response back on channel
+		task.response <- SqlResponse{err: false, result: res}
+		Idle[id/100].Add(1)
+        continue
+
+	}
+}
+
+func geojson_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
 		// this executes the request on the database.
 		var rows *sql.Rows
+		var res string
 		var err error
-
 
 		var builder strings.Builder
 		var line string
@@ -51,12 +69,12 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		// output the timestamp
 		rows, err = db.QueryContext(taskCtx, "select value from osm2pgsql_properties where property='replication_timestamp'")
 		if err != nil {
-			goto sqlerror
+			return "", err
 		}
 		rows.Next()
 		err = rows.Scan(&res)
 		if err != nil {
-			goto sqlerror
+			return "", err
 		}
 		_ = rows.Close()
 		builder.WriteString(res)
@@ -69,7 +87,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			`SELECT ST_AsGeoJSON(t.*) FROM (%s) as t;`, task.request))
 
 		if err != nil {
-			goto sqlerror
+			return "", err
 		}
 
 		for rows.Next() {
@@ -87,7 +105,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		}
 
 		if err != nil {
-			goto sqlerror
+			return "", err
 		}
 
 
@@ -95,7 +113,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		builder.WriteString("]}");
 
 		if err != nil {
-			goto sqlerror
+			return "", err
 		}
 
 		// discard result
@@ -103,16 +121,6 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 
 		res = builder.String()
 
-		// log.Printf("worker %d done\n", id)
-
-		// send response back on channel
-		task.response <- SqlResponse{err: false, result: res}
-		Idle[id/100].Add(1)
-        continue
-
-        sqlerror:
-        task.response <- SqlResponse{err: true, result: err.Error()}
-        Idle[id/100].Add(1)
-        continue
-	}
+		
+		return res, err
 }
