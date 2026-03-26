@@ -46,7 +46,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			res, err = json_output(db, taskCtx, task)
 			content_type = "application/json"
 		} else if task.output_format == "csv" {
-			res, err = csv_output(db, taskCtx, task)
+			res, err = csv_output(db, taskCtx, task, ',')
 			content_type = "text/csv"
 		} else {
 			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
@@ -197,7 +197,7 @@ func json_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, er
 		return res, err
 }
 
-func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
+func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem, comma rune) (string, error) {
 		// this executes the request on the database.
 		var rows *sql.Rows
 		var res string
@@ -205,6 +205,7 @@ func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, err
 
 		var buf bytes.Buffer
 		writer := csv.NewWriter(&buf)
+		writer.Comma = comma
 		row_num := 0
 
 		rows, err = db.QueryContext(taskCtx, task.request)
