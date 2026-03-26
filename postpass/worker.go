@@ -1,11 +1,13 @@
 package postpass
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"encoding/csv"
 )
 
 // global request counter
@@ -43,6 +45,9 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		} else if task.output_format == "json" {
 			res, err = json_output(db, taskCtx, task)
 			content_type = "application/json"
+		} else if task.output_format == "csv" {
+			res, err = csv_output(db, taskCtx, task)
+			content_type = "text/csv"
 		} else {
 			panic(fmt.Sprintf("Unsupported output_format: %s", task.output_format))
 		}
@@ -188,6 +193,78 @@ func json_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, er
 
 		res = builder.String()
 
+		
+		return res, err
+}
+
+func csv_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
+		// this executes the request on the database.
+		var rows *sql.Rows
+		var res string
+		var err error
+
+		var buf bytes.Buffer
+		writer := csv.NewWriter(&buf)
+		row_num := 0
+
+		rows, err = db.QueryContext(taskCtx, task.request)
+
+		if err != nil {
+			return "", err
+		}
+
+		columns, err := rows.Columns()
+		if err != nil {
+			return "", err
+		}
+		err = writer.Write(columns)
+		if err != nil {
+			return "", err
+		}
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+
+		for rows.Next() {
+			if err := rows.Scan(valuePtrs...); err != nil {
+				return "", err
+			}
+
+			record := make([]string, len(columns))
+			for i, val := range values {
+				// Handle NULL values
+				if val == nil {
+					record[i] = ""
+				} else {
+					// Convert the value to a string
+					record[i] = fmt.Sprintf("%v", val)
+				}
+			}
+
+			// Write the record to the CSV
+			if err := writer.Write(record); err != nil {
+				return "", err
+			}
+
+			row_num ++
+		}
+
+		if err != nil {
+			return "", err
+		}
+
+		// discard result
+		_ = rows.Close()
+
+		writer.Flush()
+		if err := writer.Error() ; err != nil {
+			return "", err
+		}
+
+		res = buf.String()
 		
 		return res, err
 }
