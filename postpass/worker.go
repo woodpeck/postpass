@@ -428,6 +428,9 @@ func markdown_table_output(db *sql.DB, taskCtx context.Context, task WorkItem) (
 		var row []string
 
 		rows, err = db.QueryContext(taskCtx, task.request)
+		if err != nil {
+			return "", err
+		}
 
 		columns, err := rows.Columns()
 		values := make([]interface{}, len(columns))
@@ -491,6 +494,9 @@ func sql_values(db *sql.DB, taskCtx context.Context, task WorkItem, incl_col_nam
 
 
 		columns, err := rows.Columns()
+		if err != nil {
+			return "", err
+		}
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range values {
