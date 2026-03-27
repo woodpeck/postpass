@@ -42,40 +42,41 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
 		Idle[id/100].Add(-1)
 
-		if task.output_format == "geojson" {
+		switch task.output_format {
+		case "geojson":
 			res, err = geojson_output(db, taskCtx, task, false)
 			content_type = "application/geojson"
-		} else if task.output_format == "geojson_w_props" {
+		case "geojson_w_props":
 			res, err = geojson_output(db, taskCtx, task, true)
 			content_type = "application/geojson"
-		} else if task.output_format == "json" {
+		case "json":
 			res, err = json_output(db, taskCtx, task)
 			content_type = "application/json"
-		} else if task.output_format == "csv" {
+		case "csv":
 			res, err = csv_output(db, taskCtx, task, ',', true)
 			content_type = "text/csv"
-		} else if task.output_format == "tsv" {
+		case "tsv":
 			res, err = csv_output(db, taskCtx, task, '\t', true)
 			content_type = "text/tsv"
-		} else if task.output_format == "csv_headerless" {
+		case "csv_headerless":
 			res, err = csv_output(db, taskCtx, task, ',', false)
 			content_type = "text/csv"
-		} else if task.output_format == "tsv_headerless" {
+		case "tsv_headerless":
 			res, err = csv_output(db, taskCtx, task, '\t', false)
 			content_type = "text/tsv"
-		} else if task.output_format == "html_table" {
+		case "html_table":
 			res, err = html_table_output(db, taskCtx, task)
 			content_type = "text/html"
-		} else if task.output_format == "md_table" {
+		case "md_table":
 			res, err = markdown_table_output(db, taskCtx, task)
 			content_type = "text/plain"
-		} else if task.output_format == "sql_values" {
+		case "sql_values":
 			res, err = sql_values(db, taskCtx, task, false)
 			content_type = "text/plain"
-		} else if task.output_format == "with_sql_values" {
+		case "with_sql_values":
 			res, err = sql_values(db, taskCtx, task, true)
 			content_type = "text/plain"
-		} else {
+		default:
 			log.Printf("Impossible code path. Unsupported output_format %s", task.output_format)
 		}
 
