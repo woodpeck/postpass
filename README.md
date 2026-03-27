@@ -118,6 +118,8 @@ Acceptable values:
 
 * **`geojson`**: (default if not defined) single GeoJSON `FeatureCollection`.
   If each row doesn't have a geometry column, a `HTTP 400` will be returned.
+* **`geojson_w_props`**: single GeoJSON `FeatureCollection`, with the
+  non-standard `properties` field (cf. [#11](https://github.com/woodpeck/postpass/issues/11))
 * **`html_table`**: A table in HTML
   ```html
   <table>

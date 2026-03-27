@@ -43,7 +43,10 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		Idle[id/100].Add(-1)
 
 		if task.output_format == "geojson" {
-			res, err = geojson_output(db, taskCtx, task)
+			res, err = geojson_output(db, taskCtx, task, false)
+			content_type = "application/geojson"
+		} else if task.output_format == "geojson_w_props" {
+			res, err = geojson_output(db, taskCtx, task, true)
 			content_type = "application/geojson"
 		} else if task.output_format == "json" {
 			res, err = json_output(db, taskCtx, task)
@@ -90,7 +93,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 	}
 }
 
-func geojson_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string, error) {
+func geojson_output(db *sql.DB, taskCtx context.Context, task WorkItem, incl_props bool) (string, error) {
 		// this executes the request on the database.
 		var rows *sql.Rows
 		var res string
@@ -102,22 +105,26 @@ func geojson_output(db *sql.DB, taskCtx context.Context, task WorkItem) (string,
 
 		// “header” of GeoJSON output
 
-		builder.WriteString("{ \"type\": \"FeatureCollection\", \"properties\": { \"generator\": \"Postpass API 0.2\", \"timestamp\": \"")
+		builder.WriteString("{ \"type\": \"FeatureCollection\", ")
 
-		// output the timestamp
-		rows, err = db.QueryContext(taskCtx, "select value from osm2pgsql_properties where property='replication_timestamp'")
-		if err != nil {
-			return "", err
-		}
-		rows.Next()
-		err = rows.Scan(&res)
-		if err != nil {
-			return "", err
-		}
-		_ = rows.Close()
-		builder.WriteString(res)
+		if incl_props {
+			builder.WriteString("\"properties\": { \"generator\": \"Postpass API 0.2\", \"timestamp\": \"")
+			// output the timestamp
+			rows, err = db.QueryContext(taskCtx, "select value from osm2pgsql_properties where property='replication_timestamp'")
+			if err != nil {
+				return "", err
+			}
+			rows.Next()
+			err = rows.Scan(&res)
+			if err != nil {
+				return "", err
+			}
+			_ = rows.Close()
+			builder.WriteString(res)
 
-		builder.WriteString("\"}, \"features\": [")
+			builder.WriteString("\"}, ")
+		}
+		builder.WriteString("\"features\": [")
 
 		// Now do each row
 				

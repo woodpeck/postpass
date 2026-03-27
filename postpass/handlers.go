@@ -38,7 +38,7 @@ func HandleInterpreter(db *sql.DB, slow chan<- WorkItem, medium chan<- WorkItem,
 
 	output_format := "geojson"
 	found_valid_format := false
-	allowed_output_formats := []string{"geojson", "json", "csv", "csv_headerless", "tsv", "tsv_headerless", "html_table", "md_table", "sql_values", "with_sql_values"}
+	allowed_output_formats := []string{"geojson", "geojson_w_props", "json", "csv", "csv_headerless", "tsv", "tsv_headerless", "html_table", "md_table", "sql_values", "with_sql_values"}
 	wanted_output_format := r.Form["output_format"]
 	if wanted_output_format != nil {
 		wanted_output_format := wanted_output_format[0]
