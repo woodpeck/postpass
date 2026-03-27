@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"encoding/csv"
 	"html"
+	"github.com/lib/pq"
 )
 
 // global request counter
@@ -64,6 +65,12 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 			content_type = "text/html"
 		} else if task.output_format == "md_table" {
 			res, err = markdown_table_output(db, taskCtx, task)
+			content_type = "text/plain"
+		} else if task.output_format == "sql_values" {
+			res, err = sql_values(db, taskCtx, task, false)
+			content_type = "text/plain"
+		} else if task.output_format == "with_sql_values" {
+			res, err = sql_values(db, taskCtx, task, true)
 			content_type = "text/plain"
 		} else {
 			log.Printf("Impossible code path. Unsupported output_format %s", task.output_format)
@@ -446,6 +453,108 @@ func markdown_table_output(db *sql.DB, taskCtx context.Context, task WorkItem) (
 		_ = rows.Close()
 
 		res := formatMarkdownTable(table)
+		
+		return res, err
+}
+
+func contains[T comparable](slice []T, item T) bool {
+    for _, s := range slice {
+        if s == item {
+            return true
+        }
+    }
+    return false
+}
+
+func sql_values(db *sql.DB, taskCtx context.Context, task WorkItem, incl_col_names bool) (string, error) {
+		// this executes the request on the database.
+		var rows *sql.Rows
+		var res string
+		var err error
+		var builder strings.Builder
+		row_num := 0
+
+
+
+		rows, err = db.QueryContext(taskCtx, task.request)
+
+		if err != nil {
+			return "", err
+		}
+
+
+		columns, err := rows.Columns()
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		column_types := make([]string, len(columns))
+		raw_column_types, err := rows.ColumnTypes()
+		for i, raw_type := range raw_column_types {
+			column_types[i] = raw_type.DatabaseTypeName()
+		}
+
+		if incl_col_names {
+			builder.WriteString("(")
+			for i, col := range columns {
+				if i > 0 {
+					builder.WriteString(", ")
+				}
+				builder.WriteString(pq.QuoteIdentifier(col))
+			}
+			builder.WriteString(") AS (")
+		}
+
+		builder.WriteString("VALUES ")
+
+
+		// TODO lots to add here
+		quote_types := []string{"TEXT"}
+		direct_types := []string{"BIGINT", "BIGSERIAL", "SERIAL8", "BOOLEAN", "BOOL", "INT8", "SERIAL8", "REAL", "FLOAT4", "SMALLINT", "INT2", "SMALLSERIAL", "SERIAL2", "SERIAL", "SERIAL4"}
+
+		for rows.Next() {
+			if err := rows.Scan(valuePtrs...); err != nil {
+				return "", err
+			}
+			if row_num > 0 {
+				builder.WriteString(", ")
+			}
+			builder.WriteString("(")
+
+			for i, val := range values {
+				if i > 0 {
+					builder.WriteString(", ")
+				}
+				if contains(quote_types, column_types[i]) {
+					builder.WriteString(pq.QuoteLiteral(fmt.Sprintf("%v", val)))
+				} else if contains(direct_types, column_types[i]) {
+					builder.WriteString(fmt.Sprintf("%v", val))
+				} else {
+					// If we don't know, then just make ugly BUT FUNCTIONAL SQL 
+					builder.WriteString(fmt.Sprintf("%s::%s", pq.QuoteLiteral(fmt.Sprintf("%v", val)), column_types[i]))
+				}
+
+			}
+
+			builder.WriteString(")")
+			row_num ++
+		}
+		if err != nil {
+			return "", err
+		}
+		// discard result
+		_ = rows.Close()
+
+
+		if incl_col_names {
+			builder.WriteString(")")
+		}
+		builder.WriteString("\n")
+
+
+		res = builder.String()
 		
 		return res, err
 }

@@ -158,6 +158,20 @@ Acceptable values:
   2404499	true
   ```
 * **`tsv_headerless`**: TSV without header row
+* **`sql_values`**: [SQL `VALUES`](https://www.postgresql.org/docs/current/sql-values.html) statement
+  ```sql
+  VALUES (141183, false), (2404499, true)
+  ```
+* **`with_sql_values`**: [SQL `VALUES`](https://www.postgresql.org/docs/current/sql-values.html) with the header columns, suitable to copy/paste into a `WITH` statement for later usage
+  ```sql
+  ("count", "is_null") AS (VALUES (141183, false), (2404499, true))
+  ```
+  This can be used later like:
+  ```sql
+  WITH original_values ("count", "is_null") AS (VALUES (141183, false), (2404499, true)),
+  select * from data join original_values ...
+  ```
+
 
 
 ### `/explain`
