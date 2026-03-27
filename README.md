@@ -138,7 +138,7 @@ Acceptable values:
    NB: This uses [PostgreSQL's `to_json` function](https://www.postgresql.org/docs/current/functions-json.html#:~:text=to%5Fjson%20%28%20anyelement%20%29%20%E2%86%92%20json), which converts geometry objects to GeoJSON
    ```
    $ curl  -G http://localhost:8081/interpreter --data-urlencode "output_format=json" --data-urlencode "data=SELECT tags->>'name' as name, geom from postpass_point limit 1" ; echo
-[{"name":null,"geom":{"type":"Point","crs":{"type":"name","properties":{"name":"EPSG:4326"}},"coordinates":[-6.6822123,55.1341014]}}]
+   [{"name":null,"geom":{"type":"Point","crs":{"type":"name","properties":{"name":"EPSG:4326"}},"coordinates":[-6.6822123,55.1341014]}}]
    ```
 * **`csv`**: Comma Separated Values
   ```csv
