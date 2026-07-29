@@ -27,6 +27,7 @@ func HandleInterpreter(
 	cfg *PostpassConfig,
 	writer http.ResponseWriter,
 	r *http.Request,
+	metrics *Metrics,
 ) {
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse, 1)

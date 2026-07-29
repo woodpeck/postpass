@@ -15,11 +15,16 @@ type DatabaseConfig struct {
 	DatabaseName string `yaml:"database_name"`
 }
 
+type MetricsConfig struct {
+	Enabled                     bool      `yaml:"enabled"`
+}
+
 type PostpassConfig struct {
 	Database             DatabaseConfig `yaml:"database"`
 	ListenPort           int            `yaml:"listen_port"`
 	QuickMediumThreshold int            `yaml:"quick_medium_threshold"`
 	MediumSlowThreshold  int            `yaml:"medium_slow_threshold"`
+	Metrics              MetricsConfig  `yaml:"metrics"`
 }
 
 func DefaultConfig() PostpassConfig {
@@ -34,6 +39,9 @@ func DefaultConfig() PostpassConfig {
 		ListenPort:           8081,
 		QuickMediumThreshold: 150,
 		MediumSlowThreshold:  150000,
+		Metrics: MetricsConfig{
+			Enabled:                     true,
+		},
 	}
 }
 

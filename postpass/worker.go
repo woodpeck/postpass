@@ -20,7 +20,7 @@ var Idle [4]atomic.Int64
  *
  * arguments: database connection, worker id, channel to read jobs from
  */
-func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
+func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 	Idle[id/100].Add(1)
 	var query_duration time.Duration
 
