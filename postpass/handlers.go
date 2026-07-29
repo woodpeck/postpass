@@ -41,9 +41,9 @@ func HandleInterpreter(
 	// Prefer q= then data=
 	_ = r.ParseForm()
 	query := ""
-	if values, ok := r.Form["q"] ; ok {
+	if values, ok := r.Form["q"]; ok {
 		query = values[0]
-	} else if values, ok := r.Form["data"] ; ok {
+	} else if values, ok := r.Form["data"]; ok {
 		query = values[0]
 	} else {
 		log.Printf("no q/data field given\n")
