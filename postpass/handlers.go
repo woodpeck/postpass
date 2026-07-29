@@ -83,7 +83,7 @@ func HandleInterpreter(
 		strings.Join(strings.Fields(strings.TrimSpace(query)), " "),
 		geojson)
 
-	var startTime = time.Now().UnixMilli()
+	var startTime = time.Now()
 
 	_, from, to, err := explain(db, query, true)
 	if err != nil {
@@ -97,21 +97,26 @@ func HandleInterpreter(
 
 	// create work item...
 	work := WorkItem{
-		request:  query,
-		geojson:  geojson,
-		response: rchan,
-		closer:   closeChan,
+		request:     query,
+		geojson:     geojson,
+		response:    rchan,
+		closer:      closeChan,
+		when_queued: startTime,
+		est_cost:    med,
 	}
 
 	// ... and send to appropriate channel
 	if med < cfg.QuickMediumThreshold {
 		log.Printf("request #%d: medium cost is %d, sending to quick worker\n", id, med)
+		work.queue = "quick"
 		quick <- work
 	} else if med < cfg.MediumSlowThreshold {
 		log.Printf("request #%d: medium cost is %d, sending to medium worker\n", id, med)
+		work.queue = "medium"
 		medium <- work
 	} else {
 		log.Printf("request #%d: medium cost is %d, sending to slow worker\n", id, med)
+		work.queue = "slow"
 		slow <- work
 	}
 
@@ -126,7 +131,7 @@ func HandleInterpreter(
 		return
 	}
 
-	var elapsed = time.Now().UnixMilli() - startTime
+	var elapsed = time.Now().UnixMilli() - startTime.UnixMilli()
 
 	// and send response to HTTP client
 	if rv.err {
