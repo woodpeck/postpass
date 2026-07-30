@@ -18,6 +18,7 @@ type DatabaseConfig struct {
 type MetricsConfig struct {
 	Enabled                     bool      `yaml:"enabled"`
 	EstCostBuckets              []float64 `yaml:"est_cost_buckets"`
+	QueryDurationBuckets        []float64 `yaml:"query_duration_buckets"`
 }
 
 type PostpassConfig struct {
@@ -43,6 +44,7 @@ func DefaultConfig() PostpassConfig {
 		Metrics: MetricsConfig{
 			Enabled:                     true,
 			EstCostBuckets:              []float64{1.0, 10.0, 100.0},
+			QueryDurationBuckets:        []float64{0.1, 1.0, 10.0, 100.0},
 		},
 	}
 }

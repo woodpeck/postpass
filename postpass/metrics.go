@@ -7,6 +7,8 @@ type Metrics struct {
 	RespSent *prometheus.CounterVec
 
 	EstCost prometheus.Histogram
+
+	QueryDuration     *prometheus.HistogramVec
 }
 
 func NewMetrics(reg prometheus.Registerer, cfg PostpassConfig) *Metrics {
@@ -29,13 +31,22 @@ func NewMetrics(reg prometheus.Registerer, cfg PostpassConfig) *Metrics {
 			Help:      "Estimated costs",
 			Buckets:   cfg.Metrics.EstCostBuckets,
 		}),
+		QueryDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "postpass",
+			Name:      "query_duration_seconds",
+			Help:      "How long do queries take to run (excl. time in queue)",
+			Buckets:   cfg.Metrics.QueryDurationBuckets,
+		},
+			[]string{"queue_name"},
+		),
 	}
 
-	reg.MustRegister(m.ReqRecv, m.RespSent, m.EstCost)
+	reg.MustRegister(m.ReqRecv, m.RespSent, m.EstCost, m.QueryDuration)
 
 	// “Initialize” the labels here. This ensures the metric is always giving a 0 for the metric
 	for _, name := range []string{"quick", "medium", "slow"} {
 		m.RespSent.WithLabelValues(name)
+		m.QueryDuration.WithLabelValues(name)
 	}
 
 	return m

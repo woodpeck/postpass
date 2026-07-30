@@ -136,6 +136,7 @@ func HandleInterpreter(
 	}
 
 	var elapsed = time.Now().UnixMilli() - startTime.UnixMilli()
+	metrics.QueryDuration.WithLabelValues(rv.queue).Observe(rv.query_duration.Seconds())
 
 	// and send response to HTTP client
 	if rv.err {
