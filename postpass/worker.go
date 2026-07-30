@@ -119,6 +119,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 		// log.Printf("worker %d done\n", id)
 
 		// send response back on channel
+		metrics.RespSent.WithLabelValues(task.queue).Inc()
 		query_duration = time.Since(startTime)
 		task.response <- SqlResponse{err: false, result: res,
 			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost}
@@ -127,6 +128,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 
 	sqlerror:
 		query_duration = time.Since(startTime)
+		metrics.RespSent.WithLabelValues(task.queue).Inc()
 		task.response <- SqlResponse{err: true, result: err.Error(),
 			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost}
 		Idle[id/100].Add(1)
