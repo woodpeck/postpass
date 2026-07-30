@@ -92,6 +92,7 @@ func HandleInterpreter(
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
+	metrics.ReqRecv.Inc()
 
 	// use average of two cost values given by EXPLAIN
 	med := int((from + to) / 2)
