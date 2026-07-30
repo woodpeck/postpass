@@ -97,6 +97,8 @@ func HandleInterpreter(
 	// use average of two cost values given by EXPLAIN
 	med := int((from + to) / 2)
 
+	metrics.EstCost.Observe(float64(med))
+
 	// create work item...
 	work := WorkItem{
 		request:     query,
