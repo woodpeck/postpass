@@ -36,6 +36,8 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 		startTime := time.Now()
 		in_queue := task.when_queued.Sub(startTime)
 
+		metrics.QueueSize.WithLabelValues(task.queue).Dec()
+
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
 		Idle[id/100].Add(-1)
 

@@ -113,14 +113,17 @@ func HandleInterpreter(
 	if med < cfg.QuickMediumThreshold {
 		log.Printf("request #%d: medium cost is %d, sending to quick worker\n", id, med)
 		work.queue = "quick"
+		metrics.QueueSize.WithLabelValues("quick").Inc()
 		quick <- work
 	} else if med < cfg.MediumSlowThreshold {
 		log.Printf("request #%d: medium cost is %d, sending to medium worker\n", id, med)
 		work.queue = "medium"
+		metrics.QueueSize.WithLabelValues("medium").Inc()
 		medium <- work
 	} else {
 		log.Printf("request #%d: medium cost is %d, sending to slow worker\n", id, med)
 		work.queue = "slow"
+		metrics.QueueSize.WithLabelValues("slow").Inc()
 		slow <- work
 	}
 
