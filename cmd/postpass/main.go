@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -131,6 +132,10 @@ func main() {
 	// set up callback for /explain URL
 	http.HandleFunc("/explain", func(w http.ResponseWriter, r *http.Request) {
 		postpass.HandleExplain(db, &cfg, w, r)
+	})
+
+	http.HandleFunc("/healthy", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "healthy\n")
 	})
 
 	log.Printf("Listening on :%d", cfg.ListenPort)
