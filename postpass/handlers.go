@@ -27,6 +27,7 @@ func HandleInterpreter(
 	cfg *PostpassConfig,
 	writer http.ResponseWriter,
 	r *http.Request,
+	metrics *Metrics,
 ) {
 	// create channel we want to receive the response on
 	rchan := make(chan SqlResponse, 1)
@@ -41,9 +42,9 @@ func HandleInterpreter(
 	// Prefer q= then data=
 	_ = r.ParseForm()
 	query := ""
-	if values, ok := r.Form["q"] ; ok {
+	if values, ok := r.Form["q"]; ok {
 		query = values[0]
-	} else if values, ok := r.Form["data"] ; ok {
+	} else if values, ok := r.Form["data"]; ok {
 		query = values[0]
 	} else {
 		log.Printf("no q/data field given\n")
@@ -73,6 +74,7 @@ func HandleInterpreter(
 				cache_for = 172800
 			}
 
+			metrics.ReqCacheFor.Observe(float64(cache_for))
 			writer.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", cache_for))
 		}
 	}
@@ -83,7 +85,7 @@ func HandleInterpreter(
 		strings.Join(strings.Fields(strings.TrimSpace(query)), " "),
 		geojson)
 
-	var startTime = time.Now().UnixMilli()
+	var startTime = time.Now()
 
 	_, from, to, err := explain(db, query, true)
 	if err != nil {
@@ -91,27 +93,38 @@ func HandleInterpreter(
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
+	metrics.ReqRecv.Inc()
 
 	// use average of two cost values given by EXPLAIN
 	med := int((from + to) / 2)
 
+	metrics.EstCost.Observe(float64(med))
+
 	// create work item...
 	work := WorkItem{
-		request:  query,
-		geojson:  geojson,
-		response: rchan,
-		closer:   closeChan,
+		request:     query,
+		geojson:     geojson,
+		response:    rchan,
+		closer:      closeChan,
+		when_queued: startTime,
+		est_cost:    med,
 	}
 
 	// ... and send to appropriate channel
 	if med < cfg.QuickMediumThreshold {
 		log.Printf("request #%d: medium cost is %d, sending to quick worker\n", id, med)
+		work.queue = "quick"
+		metrics.QueueSize.WithLabelValues("quick").Inc()
 		quick <- work
 	} else if med < cfg.MediumSlowThreshold {
 		log.Printf("request #%d: medium cost is %d, sending to medium worker\n", id, med)
+		work.queue = "medium"
+		metrics.QueueSize.WithLabelValues("medium").Inc()
 		medium <- work
 	} else {
 		log.Printf("request #%d: medium cost is %d, sending to slow worker\n", id, med)
+		work.queue = "slow"
+		metrics.QueueSize.WithLabelValues("slow").Inc()
 		slow <- work
 	}
 
@@ -126,7 +139,11 @@ func HandleInterpreter(
 		return
 	}
 
-	var elapsed = time.Now().UnixMilli() - startTime
+	var elapsed = time.Now().UnixMilli() - startTime.UnixMilli()
+	metrics.QueryDuration.WithLabelValues(rv.queue).Observe(rv.query_duration.Seconds())
+	metrics.TaskQueueDuration.WithLabelValues(rv.queue).Observe(rv.in_queue.Seconds())
+	metrics.TotalDuration.WithLabelValues(rv.queue).Observe(rv.in_queue.Seconds() + rv.query_duration.Seconds())
+	metrics.EstCostDurationRatio.WithLabelValues(rv.queue).Observe(float64(rv.est_cost) / rv.query_duration.Seconds())
 
 	// and send response to HTTP client
 	if rv.err {
@@ -136,6 +153,7 @@ func HandleInterpreter(
 		http.Error(writer, rv.result, http.StatusBadRequest)
 	}
 
+	metrics.RespSize.Observe(float64(len(rv.result)))
 	log.Printf("request #%d: completed after %dms, response size is %d\n",
 		id, elapsed, len(rv.result))
 	_, _ = fmt.Fprintf(writer, "%s", rv.result)

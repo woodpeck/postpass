@@ -151,6 +151,10 @@ e.g.:
 
     curl -G http://localhost:8081/explain --data-urlencode "q=SELECT tags->>'name' as name, geom FROM postpass_point"
 
+### `/metrics`
+
+Prometheus metrics. Default turned on. Can be disabled with `metrics.enabled = false` in the config file.
+
 
 #### `cache_for`
 

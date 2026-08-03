@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 // global request counter
@@ -19,8 +20,9 @@ var Idle [4]atomic.Int64
  *
  * arguments: database connection, worker id, channel to read jobs from
  */
-func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
+func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 	Idle[id/100].Add(1)
+	var query_duration time.Duration
 
 	// reads job from channel
 	for task := range tasks {
@@ -30,6 +32,11 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 				cancelTask()
 			}
 		}()
+
+		startTime := time.Now()
+		in_queue := task.when_queued.Sub(startTime)
+
+		metrics.QueueSize.WithLabelValues(task.queue).Dec()
 
 		// log.Printf("worker %d processing task '%s'\n", id, task.request)
 		Idle[id/100].Add(-1)
@@ -114,12 +121,18 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem) {
 		// log.Printf("worker %d done\n", id)
 
 		// send response back on channel
-		task.response <- SqlResponse{err: false, result: res}
+		metrics.RespSent.WithLabelValues(task.queue).Inc()
+		query_duration = time.Since(startTime)
+		task.response <- SqlResponse{err: false, result: res,
+			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost}
 		Idle[id/100].Add(1)
 		continue
 
 	sqlerror:
-		task.response <- SqlResponse{err: true, result: err.Error()}
+		query_duration = time.Since(startTime)
+		metrics.RespSent.WithLabelValues(task.queue).Inc()
+		task.response <- SqlResponse{err: true, result: err.Error(),
+			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost}
 		Idle[id/100].Add(1)
 		continue
 	}

@@ -21,6 +21,9 @@ import (
 	"github.com/goccy/go-yaml"
 	_ "github.com/lib/pq"
 	"postpass/postpass"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 /*
@@ -31,6 +34,7 @@ func main() {
 	// don't log timestamp since systemd already does
 	log.SetFlags(0)
 
+	reg := prometheus.NewRegistry()
 	var configPath = flag.String("c", "", "Filepath of the config file")
 	var printConfig = flag.Bool("print-config", false, "Print the out the config")
 	var dbHost = flag.String("db-host", "", "The postgis database host")
@@ -78,6 +82,8 @@ func main() {
 		return
 	}
 
+	metrics := postpass.NewMetrics(reg, cfg)
+
 	// open a connection to the database
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable options='-c statement_timeout=36000000'",
 		cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Password, cfg.Database.DatabaseName)
@@ -104,15 +110,15 @@ func main() {
 	// initialize goroutines
 	quick_jobs := make(chan postpass.WorkItem, 50)
 	for w := 1; w <= 10; w++ {
-		go postpass.Worker(db, 100+w, quick_jobs)
+		go postpass.Worker(db, 100+w, quick_jobs, metrics)
 	}
 	medium_jobs := make(chan postpass.WorkItem, 50)
 	for w := 1; w <= 4; w++ {
-		go postpass.Worker(db, 200+w, medium_jobs)
+		go postpass.Worker(db, 200+w, medium_jobs, metrics)
 	}
 	slow_jobs := make(chan postpass.WorkItem, 50)
 	for w := 1; w <= 2; w++ {
-		go postpass.Worker(db, 300+w, slow_jobs)
+		go postpass.Worker(db, 300+w, slow_jobs, metrics)
 	}
 
 	// set up a ticker to log how many busy workers there are
@@ -127,13 +133,17 @@ func main() {
 
 	// set up callback for /interpreter URL
 	http.HandleFunc("/interpreter", func(w http.ResponseWriter, r *http.Request) {
-		postpass.HandleInterpreter(db, slow_jobs, medium_jobs, quick_jobs, &cfg, w, r)
+		postpass.HandleInterpreter(db, slow_jobs, medium_jobs, quick_jobs, &cfg, w, r, metrics)
 	})
 	// set up callback for /explain URL
 	http.HandleFunc("/explain", func(w http.ResponseWriter, r *http.Request) {
 		postpass.HandleExplain(db, &cfg, w, r)
 	})
 
+	if cfg.Metrics.Enabled {
+		// set up callback for /metrics URL
+		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	}
 	http.HandleFunc("/healthy", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, "healthy\n")
 	})
