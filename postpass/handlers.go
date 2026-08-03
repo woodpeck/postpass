@@ -152,6 +152,7 @@ func HandleInterpreter(
 		http.Error(writer, rv.result, http.StatusBadRequest)
 	}
 
+	metrics.RespSize.Observe(float64(len(rv.result)))
 	log.Printf("request #%d: completed after %dms, response size is %d\n",
 		id, elapsed, len(rv.result))
 	_, _ = fmt.Fprintf(writer, "%s", rv.result)

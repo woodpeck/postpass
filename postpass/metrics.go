@@ -5,6 +5,7 @@ import "github.com/prometheus/client_golang/prometheus"
 type Metrics struct {
 	ReqRecv  prometheus.Counter
 	RespSent *prometheus.CounterVec
+	RespSize prometheus.Histogram
 
 	EstCost prometheus.Histogram
 
@@ -31,6 +32,12 @@ func NewMetrics(reg prometheus.Registerer, cfg PostpassConfig) *Metrics {
 		},
 			[]string{"queue_name"},
 		),
+		RespSize: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "postpass",
+			Name:      "response_size_bytes",
+			Help:      "Size of responses sent",
+			Buckets:   cfg.Metrics.RespSizeBuckets,
+		}),
 		EstCost: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "postpass",
 			Name:      "est_cost",
@@ -80,7 +87,7 @@ func NewMetrics(reg prometheus.Registerer, cfg PostpassConfig) *Metrics {
 		),
 	}
 
-	reg.MustRegister(m.ReqRecv, m.RespSent, m.EstCost, m.QueryDuration, m.TaskQueueDuration, m.TotalDuration, m.EstCostDurationRatio, m.QueueSize)
+	reg.MustRegister(m.ReqRecv, m.RespSent, m.RespSize, m.EstCost, m.QueryDuration, m.TaskQueueDuration, m.TotalDuration, m.EstCostDurationRatio, m.QueueSize)
 
 	// “Initialize” the labels here. This ensures the metric is always giving a 0 for the metric
 	for _, name := range []string{"quick", "medium", "slow"} {

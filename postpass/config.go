@@ -22,6 +22,7 @@ type MetricsConfig struct {
 	TaskQueueDurationBuckets    []float64 `yaml:"task_queue_duration_buckets"`
 	TotalDurationBuckets        []float64 `yaml:"total_duration_buckets"`
 	EstCostDurationRatioBuckets []float64 `yaml:"est_cost_query_duration_ratio_buckets"`
+	RespSizeBuckets             []float64 `yaml:"resp_size_buckets"`
 }
 
 type PostpassConfig struct {
@@ -51,6 +52,7 @@ func DefaultConfig() PostpassConfig {
 			TaskQueueDurationBuckets:    []float64{0.1, 1.0, 10.0, 100.0},
 			TotalDurationBuckets:        []float64{1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0},
 			EstCostDurationRatioBuckets: []float64{1. / 10, 1. / 2, 1., 2. / 1, 10. / 1, 1e+2, 1e+3, 1e+4, 1e+5, 1e+6},
+			RespSizeBuckets:             []float64{100, 500, 1000, 10e3, 100e3, 1e6},
 		},
 	}
 }
