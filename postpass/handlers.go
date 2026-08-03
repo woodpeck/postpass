@@ -74,6 +74,7 @@ func HandleInterpreter(
 				cache_for = 172800
 			}
 
+			metrics.ReqCacheFor.Observe(float64(cache_for))
 			writer.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", cache_for))
 		}
 	}

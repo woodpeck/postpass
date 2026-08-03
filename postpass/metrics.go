@@ -3,7 +3,9 @@ package postpass
 import "github.com/prometheus/client_golang/prometheus"
 
 type Metrics struct {
-	ReqRecv  prometheus.Counter
+	ReqRecv     prometheus.Counter
+	ReqCacheFor prometheus.Histogram
+
 	RespSent *prometheus.CounterVec
 	RespSize prometheus.Histogram
 
@@ -24,6 +26,12 @@ func NewMetrics(reg prometheus.Registerer, cfg PostpassConfig) *Metrics {
 			Namespace: "postpass",
 			Name:      "request_recv_count",
 			Help:      "Total number of legit received requests",
+		}),
+		ReqCacheFor: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "postpass",
+			Name:      "request_cache_for",
+			Help:      "What values are people requesting for cache_for",
+			Buckets:   cfg.Metrics.ReqCacheForBuckets,
 		}),
 		RespSent: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "postpass",
@@ -87,7 +95,7 @@ func NewMetrics(reg prometheus.Registerer, cfg PostpassConfig) *Metrics {
 		),
 	}
 
-	reg.MustRegister(m.ReqRecv, m.RespSent, m.RespSize, m.EstCost, m.QueryDuration, m.TaskQueueDuration, m.TotalDuration, m.EstCostDurationRatio, m.QueueSize)
+	reg.MustRegister(m.ReqRecv, m.ReqCacheFor, m.RespSent, m.RespSize, m.EstCost, m.QueryDuration, m.TaskQueueDuration, m.TotalDuration, m.EstCostDurationRatio, m.QueueSize)
 
 	// “Initialize” the labels here. This ensures the metric is always giving a 0 for the metric
 	for _, name := range []string{"quick", "medium", "slow"} {
