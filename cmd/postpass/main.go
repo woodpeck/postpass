@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -143,6 +144,9 @@ func main() {
 		// set up callback for /metrics URL
 		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	}
+	http.HandleFunc("/healthy", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "healthy\n")
+	})
 
 	log.Printf("Listening on :%d", cfg.ListenPort)
 	// endless loop

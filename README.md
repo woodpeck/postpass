@@ -173,6 +173,10 @@ If `cache_for` is unset, `options[cache_for]` will be checked. These options
 have no effect on `POST` requests. Very high `cache_for` settings will be
 clamped to a sensible max value (currently: 2 days).
 
+### `/healthy`
+
+Returns HTTP 200 and the text `healthy\n`. Useful for automated health checks.
+
 ### LLM
 
 This prompt helps to generate good results with LLMs like ChatGPT.
