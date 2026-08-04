@@ -34,7 +34,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 		}()
 
 		startTime := time.Now()
-		in_queue := task.when_queued.Sub(startTime)
+		in_queue := time.Since(task.when_queued)
 
 		metrics.QueueSize.WithLabelValues(task.queue).Dec()
 
@@ -124,7 +124,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 		metrics.RespSent.WithLabelValues(task.queue).Inc()
 		query_duration = time.Since(startTime)
 		task.response <- SqlResponse{err: false, result: res,
-			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost}
+			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost, queue: task.queue}
 		Idle[id/100].Add(1)
 		continue
 
@@ -132,7 +132,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 		query_duration = time.Since(startTime)
 		metrics.RespSent.WithLabelValues(task.queue).Inc()
 		task.response <- SqlResponse{err: true, result: err.Error(),
-			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost}
+			in_queue: in_queue, query_duration: query_duration, est_cost: task.est_cost, queue: task.queue}
 		Idle[id/100].Add(1)
 		continue
 	}
