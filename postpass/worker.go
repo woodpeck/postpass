@@ -34,7 +34,7 @@ func Worker(db *sql.DB, id int, tasks <-chan WorkItem, metrics *Metrics) {
 		}()
 
 		startTime := time.Now()
-		in_queue := task.when_queued.Sub(startTime)
+		in_queue := time.Since(task.when_queued)
 
 		metrics.QueueSize.WithLabelValues(task.queue).Dec()
 
