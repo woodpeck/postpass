@@ -77,7 +77,7 @@ in front of Postpass, for example Apache:
 
       ProxyTimeout 3600
       RewriteEngine on
-      RewriteRule /api/(.*) http://localhost:8081/$1 [P]
+      RewriteRule /api/0.2/(.*) http://localhost:8081/$1 [P]
       RewriteRule /api/(.*) http://localhost:8081/$1 [P]
     </VirtualHost>
 
