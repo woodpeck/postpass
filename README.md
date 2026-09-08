@@ -77,7 +77,7 @@ in front of Postpass, for example Apache:
 
       ProxyTimeout 3600
       RewriteEngine on
-      RewriteRule /api/0.2/(.*) http://localhost:8081/$1 [P]
+      RewriteRule /api/(.*) http://localhost:8081/$1 [P]
       RewriteRule /api/(.*) http://localhost:8081/$1 [P]
     </VirtualHost>
 
@@ -185,7 +185,7 @@ This prompt helps to generate good results with LLMs like ChatGPT.
 ```
 Please generate a `curl` command containing a SQL query that will be sent to the [Postpass API](https://github.com/woodpeck/postpass), which exposes a PostGIS-enabled PostgreSQL database with OpenStreetMap data.
 
-The API endpoint is `https://postpass.geofabrik.de/api/0.2/interpreter`
+The API endpoint is `https://postpass.geofabrik.de/api/interpreter`
 
 The underlying database schema is described at: https://github.com/woodpeck/postpass-ops/blob/main/SCHEMA.md
 
@@ -212,7 +212,7 @@ Examples:
 
 1. Return geometries (default GeoJSON):
 
-> curl -G [https://postpass.geofabrik.de/api/0.2/interpreter](https://postpass.geofabrik.de/api/0.2/interpreter) --data-urlencode "q=
+> curl -G https://postpass.geofabrik.de/api/interpreter --data-urlencode "q=
 > SELECT name, geom
 > FROM postpass\_point
 > WHERE tags->>'amenity' = 'fast\_food'
@@ -220,7 +220,7 @@ Examples:
 
 2. Return aggregated result (no geometry, use `geojson=false`):
 
-> curl -G [https://postpass.geofabrik.de/api/0.2/interpreter](https://postpass.geofabrik.de/api/0.2/interpreter)
+> curl -G https://postpass.geofabrik.de/api/interpreter
 > \--data-urlencode "options\[geojson]=false"
 > \--data-urlencode "q=
 > SELECT
