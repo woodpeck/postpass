@@ -148,7 +148,7 @@ func main() {
 		_, _ = io.WriteString(w, "healthy\n")
 	})
 
-	log.Printf("Listening on :%d", cfg.ListenPort)
+	log.Printf("Listening on %s:%d", cfg.ListenHost, cfg.ListenPort)
 	// endless loop
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", cfg.ListenPort), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.ListenHost, cfg.ListenPort), nil))
 }

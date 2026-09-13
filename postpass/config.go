@@ -29,6 +29,7 @@ type MetricsConfig struct {
 type PostpassConfig struct {
 	Database             DatabaseConfig `yaml:"database"`
 	ListenPort           int            `yaml:"listen_port"`
+	ListenHost           string         `yaml:"listen_host"`
 	QuickMediumThreshold int            `yaml:"quick_medium_threshold"`
 	MediumSlowThreshold  int            `yaml:"medium_slow_threshold"`
 	Metrics              MetricsConfig  `yaml:"metrics"`
@@ -44,6 +45,7 @@ func DefaultConfig() PostpassConfig {
 			DatabaseName: "gis",
 		},
 		ListenPort:           8081,
+		ListenHost:           "",
 		QuickMediumThreshold: 150,
 		MediumSlowThreshold:  150000,
 		Metrics: MetricsConfig{
